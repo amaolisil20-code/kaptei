@@ -380,7 +380,6 @@ async function searchEmpresas(term){
   const cityTxt=$('#city').value.trim(); let city=null;
   if(cityTxt){city=cityMap[norm(cityTxt)];if(!city){res.innerHTML=`<div class="notice err">Não achei a cidade "${esc(cityTxt)}" em ${uf}. Escolha uma da lista ou deixe em branco para buscar no estado todo.</div>`;return}}
   const {q,hits}=buildQuery(term);
-  showCnae(term);
   res.innerHTML=`<div class="list"><div class="loading"><span class="spinner"></span>Procurando "${esc(term)}" em ${esc(city?city.nome:UFS.find(u=>u[0]===uf)[1])}… ${city?'':'(no estado todo pode demorar e às vezes não responde; prefira escolher a cidade)'}</div></div>`;
   setBusy(true);
   const stateName=UFS.find(u=>u[0]===uf)[1];
