@@ -197,6 +197,20 @@ function matchTags(term){
   return hits;
 }
 const CATLABEL={};TAGS.forEach(x=>x.t.forEach(t=>CATLABEL[t]=x.c));
+/* categorias do Overture Maps (padrões LIKE) para cada ramo acima */
+const OVT={Odontologia:['%dent%','%orthodont%'],Academia:['gym','%fitness%','%pilates%','%yoga%','%crossfit%'],Restaurante:['restaurant','%churrascaria%','%steakhouse%'],
+ Alimentação:['fast_food%','casual_eatery','%pizza%','%burger%','%ice_cream%','%acai%'],Café:['cafe','coffee_shop'],Bar:['bar','%pub%','%brewery%'],
+ Imobiliária:['real_estate%','%realtor%'],Laboratório:['diagnostics_imaging_or_lab_service','%laborator%'],Clínica:['%clinic%','%doctor%'],Hospital:['hospital'],
+ Farmácia:['pharmacy%','%drugstore%'],Pet:['animal_and_pet_store','animal_or_pet_service','%veterinar%','%pet_store%','%pet_groom%'],
+ Advocacia:['attorney_or_law_firm','%lawyer%','legal_service'],Contabilidade:['%accountant%','%accounting%','%tax_service%'],
+ Beleza:['%beauty%','%hair%','barber','%nail_salon%'],Padaria:['%bakery%','%pastry%','%patisserie%'],Mercado:['%supermarket%','%grocery%','convenience_store','%greengrocer%'],
+ Educação:['place_of_learning','%school%','%language%','college_university'],Automotivo:['automotive_service','%auto_repair%','%automotive_repair%','vehicle_parts_store','%tire%'],
+ Ótica:['%optic%'],Psicologia:['%psycholog%','%psychotherap%','counseling','behavioral_or_mental_health_clinic'],Fisioterapia:['physical_therapy','physical_medicine_and_rehabilitation'],
+ Nutrição:['%nutrition%','%dietitian%'],Hospedagem:['hotel','lodging','%hostel%','%motel%','inn','bed_and_breakfast'],Moda:['fashion_and_apparel_store','%clothing%','%boutique%'],
+ Construção:['building_or_construction_service','%construction%','hardware_home_and_garden_store','%engineer%'],Seguros:['%insurance%'],Coworking:['%coworking%'],
+ Tecnologia:['%software%','%it_service%','%computer%','%telecom%'],Marketing:['%marketing%','%advertising%'],Igreja:['%place_of_worship%','%church%'],
+ Eventos:['event_or_party_service','%party%','%event_planning%','event_venue'],Móveis:['%furniture%','%interior_design%','%home_decor%'],Joalheria:['%jewel%','%watch%'],
+ Floricultura:['%florist%','flowers_and_gifts_store']};
 function nameRegex(term){
   const words=norm(term).replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(w=>w.length>=3);
   if(!words.length)return null;
@@ -237,6 +251,42 @@ function toLead(el,cityName,uf){
     address:addr,city:t['addr:city']||cityName||'',uf,cnpj:digits(first(t,'ref:vatin','ref:CNPJ','cnpj')).slice(-14),
     lat:el.lat??el.center?.lat,lon:el.lon??el.center?.lon,socios:[]};
 }
+
+/* ---------- Overture Maps (base aberta com mais telefones) ---------- */
+function fmtPhone(p){let d=digits(p);if(d.startsWith('55')&&d.length>=12)d=d.slice(2);return d.length===11?`(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`:d.length===10?`(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`:String(p)}
+async function overture(term,hits,city,state){
+  const cats=[...new Set(hits.flatMap(h=>OVT[h.c]||[]))];
+  const words=cats.length?[]:norm(term).replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(w=>w.length>=3).slice(0,4);
+  if(!city||(!cats.length&&!words.length))return [];
+  const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),65000);
+  try{
+    const r=await fetch('/api/overture?'+new URLSearchParams({city,state,cats:cats.join(','),words:words.join(',')}),{signal:ctl.signal});
+    if(!r.ok)return [];
+    return (await r.json()).rows||[];
+  }catch(e){return []}finally{clearTimeout(to)}
+}
+function toLeadOv(r,uf,hits){
+  const soc=r.socials||[];
+  const ig=soc.find(s=>/instagram\.com/i.test(s))||'', fb=soc.find(s=>/facebook\.com/i.test(s))||'';
+  const label=hits.length===1?hits[0].c:(r.cat||'').replace(/_/g,' ');
+  return {id:'ov:'+r.id,whatsapp:[],linkedin:'',source:'Overture Maps',name:r.nome,cat:label,
+    phones:[...new Set((r.phones||[]).map(fmtPhone))],email:(r.emails||[])[0]||'',website:webLink((r.websites||[])[0]||''),instagram:ig,facebook:fb,
+    address:r.endereco||'',city:r.cidade||'',uf:r.uf||uf,cnpj:'',lat:r.lat,lon:r.lon,socios:[]};
+}
+// junta os resultados do Overture aos do mapa aberto, sem repetir a mesma empresa
+function mergeOverture(rows,uf,hits){
+  const keyName=l=>norm(l.name).replace(/[^a-z0-9]/g,'')+'|'+norm(l.city);
+  const phones=new Set(lastResults.flatMap(l=>l.phones.map(digits).filter(Boolean)));
+  const names=new Set(lastResults.map(keyName));
+  let added=0;
+  rows.forEach(r=>{
+    const l=toLeadOv(r,uf,hits);
+    if(lastResults.some(x=>x.id===l.id)||names.has(keyName(l))||l.phones.some(p=>phones.has(digits(p))))return;
+    lastResults.push(l);names.add(keyName(l));l.phones.forEach(p=>phones.add(digits(p)));added++;
+  });
+  return added;
+}
+const resultScore=l=>!!l.website*2+l.phones.length+!!l.email+!!l.website+!!l.instagram;
 
 /* ---------- CNAE hint (IBGE) ---------- */
 let cnaeCache=null;
@@ -289,7 +339,7 @@ function leadRow(l){
 }
 
 /* ---------- search: empresas ---------- */
-let lastResults=[];
+let lastResults=[], searchTok=0;
 const findLead=id=>lastResults.find(x=>x.id===id)||(lastCompany&&lastCompany.id===id?lastCompany:null);
 function rerenderLead(l){const el=document.querySelector(`.lead[data-id="${CSS.escape(l.id)}"]`);if(el)el.outerHTML=leadRow(l)}
 function mergeInto(l,d){
@@ -333,14 +383,26 @@ async function searchEmpresas(term){
   showCnae(term);
   res.innerHTML=`<div class="list"><div class="loading"><span class="spinner"></span>Procurando "${esc(term)}" em ${esc(city?city.nome:UFS.find(u=>u[0]===uf)[1])}… ${city?'':'(no estado todo pode demorar e às vezes não responde; prefira escolher a cidade)'}</div></div>`;
   setBusy(true);
+  const stateName=UFS.find(u=>u[0]===uf)[1];
+  const tok=++searchTok;
+  const ovP=overture(term,hits,city?.nome,stateName);   // roda junto com o mapa aberto
+  lastResults=[];
+  const addOverture=async()=>{
+    const rows=await ovP;if(tok!==searchTok)return 0;const added=mergeOverture(rows,uf,hits);
+    if(added){lastResults.sort((a,b)=>resultScore(b)-resultScore(a));if(mode==='empresas'&&$('#results').querySelector('.list,.res-head,.notice')){renderResults(term,hits)}enrichMany(lastResults)}
+    return added;
+  };
   try{
-    const d=await overpass(q,city?.nome,UFS.find(u=>u[0]===uf)[1]);
+    const d=await overpass(q,city?.nome,stateName);
     const seen=new Set();
     lastResults=d.elements.filter(e=>e.tags&&(e.tags.name||e.tags.brand)).map(e=>toLead(e,city?.nome,uf)).filter(l=>!seen.has(l.id)&&seen.add(l.id));
-    lastResults.sort((a,b)=>(!!b.website*2+b.phones.length+!!b.email+!!b.website+!!b.instagram)-(!!a.website*2+a.phones.length+!!a.email+!!a.website+!!a.instagram));
+    lastResults.sort((a,b)=>resultScore(b)-resultScore(a));
     renderResults(term,hits);
     enrichMany(lastResults);
-  }catch(e){res.innerHTML=`<div class="notice err">${city?'Os servidores do mapa aberto não responderam agora. Tente de novo em alguns segundos.':'O estado inteiro é grande demais para o mapa aberto responder de uma vez. Escolha uma cidade.'}<br><span style="font-size:12px;opacity:.8">${esc(e.message||'')}</span></div>`}
+    if(city){setBusy(false);$('#withPhone')?.insertAdjacentHTML('afterend',' <span class="mono" id="ovWait">· buscando mais na base Overture…</span>');await addOverture();$('#ovWait')?.remove()}
+  }catch(e){
+    if(city){const added=await addOverture();if(added){setBusy(false);return}}
+    res.innerHTML=`<div class="notice err">${city?'Os servidores do mapa aberto não responderam agora. Tente de novo em alguns segundos.':'O estado inteiro é grande demais para o mapa aberto responder de uma vez. Escolha uma cidade.'}<br><span style="font-size:12px;opacity:.8">${esc(e.message||'')}</span></div>`}
   finally{setBusy(false)}
 }
 function renderResults(term,hits){
@@ -353,7 +415,7 @@ function renderResults(term,hits){
     <p><span class="mono" id="withPhone">${withPhone}</span> com telefone${hits.length?` · categorias: ${esc([...new Set(hits.map(h=>h.c))].join(', '))}`:' · busca pelo nome'}</p></div>
     <div class="list">${list.slice(0,300).map(leadRow).join('')||'<div class="empty"><b>Nenhum resultado com telefone.</b>Desmarque "Só com telefone" para ver todos.</div>'}</div>
     ${list.length>300?'<p class="lede" style="margin-top:10px">Mostrando os 300 primeiros. Refine pela cidade para ver o resto.</p>':''}
-    <p class="lede" style="margin-top:12px;font-size:12.5px">O mapa aberto não tem todas as empresas. Etapa 2 traz a base completa da Receita.</p>`;
+    <p class="lede" style="margin-top:12px;font-size:12.5px">Fontes: © colaboradores do OpenStreetMap e Overture Maps Foundation. Nenhuma base tem todas as empresas.</p>`;
 }
 $('#onlyPhone').addEventListener('change',()=>{if(lastResults.length&&mode==='empresas')renderResults($('#q').value,matchTags($('#q').value))});
 
