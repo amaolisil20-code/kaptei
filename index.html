@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kaptei</title>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: app shell — fixed plum sidebar (bottom bar on phones) + one working column; search first, results as dense contact rows */
+:root{
+  --bg:#F6F4FB; --surface:#FFFFFF; --fg:#17112B; --muted:#6B6585; --line:#E4DFF0;
+  --lav:#EDE6FD; --violet:#6D3FE8; --violet-2:#8E66F2; --plum:#1A0F3D; --plum-2:#2A1A5E;
+  --ok:#17875B; --ok-bg:#E3F5EC; --warn:#A86A05; --warn-bg:#FBF0DA; --err:#B4233C; --err-bg:#FBE4E8;
+  --display:"Sora",ui-sans-serif,system-ui,sans-serif;
+  --body:"Sora",ui-sans-serif,system-ui,sans-serif;
+  --mono:"DM Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --radius:12px; --brand:#6D3FE8; --lav-fixed:#EDE6FD;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F0A1E; --surface:#18112F; --fg:#EEEAF8; --muted:#A49CC0; --line:#2C2449;
+  --lav:#2A1E52; --violet:#9A73FF; --violet-2:#B596FF; --plum:#120A2B; --plum-2:#241650;
+  --ok:#4CC995; --ok-bg:#12352A; --warn:#E8B04B; --warn-bg:#3A2C10; --err:#F07A8E; --err-bg:#3C1520; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F0A1E; --surface:#18112F; --fg:#EEEAF8; --muted:#A49CC0; --line:#2C2449;
+  --lav:#2A1E52; --violet:#9A73FF; --violet-2:#B596FF; --plum:#120A2B; --plum-2:#241650;
+  --ok:#4CC995; --ok-bg:#12352A; --warn:#E8B04B; --warn-bg:#3A2C10; --err:#F07A8E; --err-bg:#3C1520; color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--violet)}
+:focus-visible{outline:2px solid var(--violet);outline-offset:2px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100%}
+.side{background:var(--brand);color:#fff;padding:24px 16px;display:flex;flex-direction:column;gap:28px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px;font:600 21px/1 var(--display);letter-spacing:-.02em}
+.brand svg{width:34px;height:32px}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav button{all:unset;cursor:pointer;display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:rgba(255,255,255,.82);font-size:14px;font-weight:500}
+.nav button svg{width:18px;height:18px;flex:none}
+.nav button:hover{background:rgba(255,255,255,.14);color:#fff}
+.nav button[aria-current="page"]{background:#fff;color:var(--brand)}
+.nav button[aria-current="page"] .count{background:var(--lav-fixed)}
+.nav button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.nav .count{margin-left:auto;font:500 12px var(--mono);background:rgba(255,255,255,.2);padding:1px 8px;border-radius:99px}
+.side-foot{margin-top:auto;font-size:12px;color:rgba(255,255,255,.72);padding:0 8px;line-height:1.5}
+
+main{min-width:0;padding-block:32px 64px;padding-inline:clamp(16px,4vw,48px)}
+.page{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+h1{font:600 clamp(24px,3vw,30px)/1.15 var(--display);letter-spacing:-.025em;margin:0;text-wrap:balance}
+h2{font:600 16px/1.3 var(--display);margin:0;letter-spacing:-.01em}
+.lede{color:var(--muted);margin:6px 0 0;max-width:62ch}
+.eyebrow{font:500 11px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+/* search panel */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:18px}
+.modes{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:10px;width:max-content;max-width:100%;flex-wrap:wrap}
+.modes button{all:unset;cursor:pointer;padding:7px 14px;border-radius:7px;font-weight:500;font-size:13px;color:var(--muted)}
+.modes button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(20,10,50,.12)}
+.modes .soon{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--violet);margin-left:4px}
+.q-row{display:flex;gap:10px;flex-wrap:wrap}
+.q{flex:1 1 320px;display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:12px;padding:0 14px;background:var(--surface)}
+.q:focus-within{border-color:var(--violet)}
+.q svg{width:18px;height:18px;color:var(--muted);flex:none}
+.q input{border:0;outline:0;background:transparent;padding:13px 0;width:100%;font-size:15px}
+.btn{all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:12px;background:var(--brand);color:#fff;font-weight:600;white-space:nowrap}
+.btn:hover{filter:brightness(1.08)}
+.btn:focus-visible{outline:2px solid var(--violet);outline-offset:2px}
+.btn[disabled]{opacity:.55;cursor:progress}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);padding:8px 12px;font-weight:500;border-radius:9px;font-size:13px}
+.btn.ghost:hover{background:var(--lav);filter:none}
+.btn.sm{padding:6px 10px;font-size:12.5px;border-radius:8px}
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font-size:12px;color:var(--muted);font-weight:500}
+.field select,.field input,.field textarea{border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface);width:100%}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg);align-self:end;padding-bottom:9px}
+.check input{accent-color:var(--violet);width:16px;height:16px}
+
+.sources{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.src{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:99px;border:1px solid var(--line);font-size:12.5px;background:var(--surface)}
+.src i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.src.off{color:var(--muted);border-style:dashed}
+.src.off i{background:var(--line)}
+
+.cnae{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted)}
+.cnae span.tag{font:500 11.5px var(--mono);background:var(--lav);color:var(--fg);padding:3px 8px;border-radius:6px}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.stat b{display:block;font:600 24px/1.1 var(--display);letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-top:4px}
+
+/* results */
+.res-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.res-head p{margin:0;color:var(--muted);font-size:13px}
+.list{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.lead{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:16px;padding:16px 20px;border-top:1px solid var(--line);align-items:start}
+.lead:first-child{border-top:0}
+.lead .name{font-weight:600;font-size:15px;line-height:1.3;overflow-wrap:anywhere}
+.lead .meta{color:var(--muted);font-size:12.5px;margin-top:3px;overflow-wrap:anywhere}
+.cat{display:inline-block;font-size:11px;font-weight:500;padding:2px 8px;border-radius:99px;background:var(--lav);margin-right:6px}
+.contacts{display:flex;flex-direction:column;gap:4px;font-size:13px;min-width:0}
+.contacts a,.contacts span{overflow-wrap:anywhere}
+.contacts .row{display:flex;gap:8px;align-items:baseline}
+.contacts .k{font-size:11px;color:var(--muted);width:62px;flex:none}
+.contacts .none{color:var(--muted);font-style:italic;font-size:12.5px}
+.actions{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.saved-badge{color:var(--ok);font-size:12.5px;font-weight:600;text-align:center;padding:6px 0}
+
+.enrich{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-top:6px}
+.enrich.ok{color:var(--ok)}
+.enrich .spinner{width:12px;height:12px;border-width:2px;border-color:var(--line);border-top-color:var(--violet)}
+.linkbtn{all:unset;cursor:pointer;color:var(--violet);font-weight:600;font-size:12px}
+.linkbtn:hover{text-decoration:underline}
+.linkbtn:focus-visible{outline:2px solid var(--violet);outline-offset:2px}
+.siteform{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.siteform input{flex:1 1 160px;min-width:0;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12.5px;background:var(--surface)}
+.contact-btn{background:#1F8F55}
+.contact-btn:hover{filter:brightness(1.1)}
+.script-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.script-bar select{border:1px solid var(--line);border-radius:9px;padding:7px 10px;background:var(--surface);max-width:100%}
+.scripts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.script{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:10px}
+.script.active{border-color:var(--violet);box-shadow:0 0 0 1px var(--violet)}
+.script input,.script textarea{border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface);width:100%}
+.script input{font-weight:600}
+.script textarea{min-height:150px;resize:vertical;line-height:1.5}
+.script .row-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.script .preview{background:var(--bg);border-radius:9px;padding:10px 12px;font-size:12.5px;white-space:pre-wrap;color:var(--fg)}
+.vars{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted)}
+.vars code{font:500 12px var(--mono);background:var(--lav);color:var(--fg);padding:2px 7px;border-radius:6px;cursor:pointer;border:0}
+.active-pill{font-size:11px;font-weight:600;color:var(--violet);background:var(--lav);padding:2px 8px;border-radius:99px}
+.empty{padding:40px 24px;text-align:center;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:8px}
+.empty b{color:var(--fg);font:600 15px var(--display)}
+.notice{border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.5}
+.notice.err{background:var(--err-bg);color:var(--err)}
+.notice.info{background:var(--lav);color:var(--fg)}
+.spinner{width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading{display:flex;align-items:center;gap:12px;padding:28px 20px;color:var(--muted)}
+.loading .spinner{border-color:var(--line);border-top-color:var(--violet)}
+
+/* company card */
+.company{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+.kv{display:grid;grid-template-columns:120px minmax(0,1fr);gap:6px 12px;font-size:13.5px}
+.kv dt{color:var(--muted);font-size:12px;padding-top:2px}
+.kv dd{margin:0;overflow-wrap:anywhere}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:99px}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.err{background:var(--err-bg);color:var(--err)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-weight:500;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+.table-wrap{overflow-x:auto}
+
+/* status select in leads */
+.status{border:0;border-radius:99px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer}
+.status[data-s="novo"]{background:var(--lav);color:var(--violet)}
+.status[data-s="contatado"]{background:var(--warn-bg);color:var(--warn)}
+.status[data-s="respondeu"]{background:var(--ok-bg);color:var(--ok)}
+.status[data-s="cliente"]{background:var(--ok);color:#fff}
+.status[data-s="descartado"]{background:var(--bg);color:var(--muted)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.toolbar .field{flex:1 1 160px}
+.note-in{width:100%;border:1px solid transparent;background:transparent;border-radius:7px;padding:4px 6px;font-size:12.5px;color:var(--muted)}
+.note-in:hover,.note-in:focus{border-color:var(--line);background:var(--surface);color:var(--fg)}
+
+.roadmap{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.rm{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:8px}
+.rm p{margin:0;color:var(--muted);font-size:13px}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--plum);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:0 8px 24px rgba(10,5,30,.3);z-index:20}
+
+@media (max-width:820px){
+  .app{grid-template-columns:1fr}
+  .side{position:fixed;inset:auto 0 0 0;height:auto;flex-direction:row;padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));z-index:10;gap:0}
+  .brand,.side-foot{display:none}
+  .nav{flex-direction:row;width:100%;justify-content:space-around}
+  .nav button{flex-direction:column;gap:3px;font-size:11px;padding:6px 10px}
+  .nav .count{display:none}
+  main{padding-block:20px 110px}
+  .lead{grid-template-columns:1fr}
+  .actions{flex-direction:row;flex-wrap:wrap}
+  .company{grid-template-columns:1fr}
+  .stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .stat b{font-size:20px}
+  .toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  .kv{grid-template-columns:100px minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <svg viewBox="0 0 710 666" aria-hidden="true"><path fill="#FFFFFF" d="M447 665C427 661 406 650 390 637C387 634 373 620 360 606C347 593 320 566 302 547C283 529 268 513 268 512C268 512 290 490 316 464L364 416L388 416C418 417 432 420 452 430C473 440 478 445 528 496C589 558 604 575 626 604C644 628 664 660 664 664C663 665 657 666 559 666C477 666 453 666 447 665ZM88 630C35 619 6 561 29 509C32 501 41 488 46 482C48 479 71 457 133 396C147 382 184 345 216 314C380 152 374 158 390 150C400 145 410 141 420 140C431 137 473 137 475 139C476 141 476 157 476 205L475 268L473 278C469 289 461 305 454 315C451 319 435 336 419 352C403 367 337 433 273 496C209 560 155 613 152 615C146 619 134 625 126 628C118 631 96 632 88 630ZM19 535C18 533 17 431 17 309L16 86L8 68C4 58 0 49 1 48C1 47 15 47 81 47C171 48 164 47 183 56C201 65 216 82 223 101C228 116 228 117 228 207L228 290L158 359C48 466 48 467 41 476C29 493 24 507 21 526C20 537 19 538 19 535ZM597 220C597 219 595 214 593 208C582 174 563 148 533 131C523 125 507 118 498 116C494 115 492 114 491 113C491 110 493 109 500 107C504 106 511 103 516 101C554 85 578 57 592 15C595 7 598 1 598 1C600 -1 603 1 604 5C605 13 611 28 615 36C631 71 660 95 698 106C714 110 714 113 697 117C658 127 630 151 614 187C609 196 603 215 603 218C603 218 602 219 601 220C599 221 598 221 597 220Z"/></svg>
+      Kaptei
+    </div>
+    <nav class="nav" aria-label="Seções">
+      <button data-go="busca" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Busca</button>
+      <button data-go="leads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.4 0 4 1.5 4.5 4.5"/></svg>Meus leads <span class="count mono" id="navCount">0</span></button>
+      <button data-go="scripts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Scripts prontos</button>
+      <button data-go="fontes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Fontes</button>
+    </nav>
+    <div class="side-foot">Uso pessoal · dados públicos.<br>Seus leads ficam salvos neste navegador.</div>
+  </aside>
+
+  <main>
+    <!-- BUSCA -->
+    <section class="page" id="p-busca">
+      <div>
+        <div class="eyebrow">Prospecção</div>
+        <h1>O que você quer encontrar?</h1>
+        <p class="lede">Digite um ramo ou nome, escolha onde procurar e salve os contatos que interessam.</p>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><span class="eyebrow">Leads salvos</span><b id="stSaved">0</b></div>
+        <div class="stat"><span class="eyebrow">Contatados</span><b id="stContacted">0</b></div>
+        <div class="stat"><span class="eyebrow">Salvos hoje</span><b id="stToday">0</b></div>
+      </div>
+
+      <form class="panel" id="searchForm" novalidate>
+        <div class="modes" role="group" aria-label="Tipo de busca">
+          <button type="button" data-mode="empresas" aria-pressed="true">Empresas</button>
+          <button type="button" data-mode="cnpj" aria-pressed="false">CNPJ e sócios</button>
+          <button type="button" data-mode="perfil" aria-pressed="false">Perfil @<span class="soon">em breve</span></button>
+        </div>
+
+        <div class="q-row">
+          <label class="q" for="q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="q" autocomplete="off" placeholder="Ex.: clínicas odontológicas, imobiliárias, academias…">
+          </label>
+          <button class="btn" id="go" type="submit">Buscar</button>
+        </div>
+
+        <div class="filters" id="filtersEmp">
+          <div class="field"><label for="uf">Estado</label>
+            <select id="uf"><option value="">Escolha o estado</option></select></div>
+          <div class="field"><label for="city">Cidade</label>
+            <input id="city" list="cities" placeholder="Todas as cidades do estado" autocomplete="off"><datalist id="cities"></datalist></div>
+          <label class="check"><input type="checkbox" id="onlyPhone"> Só com telefone</label>
+        </div>
+
+        <div class="sources" id="srcRow">
+          <span class="eyebrow" style="margin-right:4px">Fontes</span>
+          <span class="src" title="Empresas mapeadas no OpenStreetMap"><i></i>Mapa aberto (OSM)</span>
+          <span class="src" title="Cadastro da Receita Federal via BrasilAPI"><i></i>Receita Federal</span>
+          <span class="src off" title="Precisa da chave do Google Places"><i></i>Google</span>
+          <span class="src off" title="Precisa do app da Meta"><i></i>Instagram</span>
+          <span class="src" title="Lê a página de contato das empresas"><i></i>Sites das empresas</span>
+          <span class="src off" title="Etapa 2: base CNPJ nacional"><i></i>Base CNPJ completa</span>
+        </div>
+      </form>
+
+      <div id="cnaeHint" class="cnae" hidden></div>
+      <div class="script-bar" data-scriptbar></div>
+      <div id="results"></div>
+    </section>
+
+    <!-- LEADS -->
+    <section class="page" id="p-leads" hidden>
+      <div class="res-head">
+        <div>
+          <div class="eyebrow">Sua prospecção</div>
+          <h1>Meus leads</h1>
+        </div>
+        <button class="btn ghost" id="exportBtn" type="button">Exportar planilha (CSV)</button>
+      </div>
+      <div class="toolbar">
+        <div class="field"><label for="fList">Lista</label><select id="fList"></select></div>
+        <div class="field"><label for="fStatus">Status</label>
+          <select id="fStatus"><option value="">Todos</option><option value="novo">Novo</option><option value="contatado">Contatado</option><option value="respondeu">Respondeu</option><option value="cliente">Cliente</option><option value="descartado">Descartado</option></select></div>
+        <div class="field"><label for="fText">Procurar nos salvos</label><input id="fText" placeholder="Nome, cidade, telefone…"></div>
+      </div>
+      <div class="script-bar" data-scriptbar></div>
+      <div id="leadsBox"></div>
+    </section>
+
+    <!-- FONTES -->
+    <section class="page" id="p-scripts" hidden>
+      <div class="res-head">
+        <div>
+          <div class="eyebrow">Abordagem</div>
+          <h1>Scripts prontos</h1>
+          <p class="lede">Escreva suas mensagens uma vez. Nos leads, o botão "Entrar em contato" abre o WhatsApp da empresa com o script ativo já preenchido.</p>
+        </div>
+        <button class="btn" id="addScript" type="button">Novo script</button>
+      </div>
+      <div class="vars"><span>Campos que se preenchem sozinhos (clique para inserir):</span><code data-var="{saudacao}">{saudacao}</code><code data-var="{empresa}">{empresa}</code><code data-var="{cidade}">{cidade}</code><code data-var="{ramo}">{ramo}</code></div>
+      <div class="scripts" id="scriptsBox"></div>
+    </section>
+    <section class="page" id="p-fontes" hidden>
+      <div>
+        <div class="eyebrow">Configuração</div>
+        <h1>Fontes de dados</h1>
+        <p class="lede">Tudo aqui é gratuito. As fontes ativas já funcionam; as próximas entram por etapas.</p>
+      </div>
+      <div class="field" style="max-width:360px">
+        <label for="newList">Listas (um produto da Venturi por lista, por exemplo)</label>
+        <div style="display:flex;gap:8px"><input id="newList" placeholder="Nome da nova lista"><button class="btn ghost" id="addList" type="button">Criar</button></div>
+        <div id="listsShow" class="cnae" style="margin-top:6px"></div>
+      </div>
+      <div class="roadmap">
+        <div class="rm"><span class="pill ok" style="width:max-content">Ativa</span><h2>Mapa aberto (OpenStreetMap)</h2><p>Empresas por ramo ou nome em qualquer estado e cidade, com telefone, site, e-mail e redes quando cadastrados.</p></div>
+        <div class="rm"><span class="pill ok" style="width:max-content">Ativa</span><h2>Receita Federal (CNPJ)</h2><p>Consulta de qualquer CNPJ com situação, ramo (CNAE), telefone, e-mail e quadro de sócios.</p></div>
+        <div class="rm"><span class="pill warn" style="width:max-content">Etapa 2</span><h2>Base CNPJ nacional</h2><p>Todas as empresas ativas do Brasil por ramo e cidade, e busca de pessoas pelos sócios. Processada uma vez por mês e hospedada grátis.</p></div>
+        <div class="rm"><span class="pill warn" style="width:max-content">Etapa 2</span><h2>Google Places</h2><p>Telefone e site atualizados. Precisa de uma chave com cota travada nas 1.000 buscas grátis por mês.</p></div>
+        <div class="rm"><span class="pill warn" style="width:max-content">Etapa 3</span><h2>Perfil @ do Instagram</h2><p>Bio, seguidores e contato de perfis profissionais pela API oficial da Meta.</p></div>
+        <div class="rm"><span class="pill ok" style="width:max-content">Ativa</span><h2>Leitura de sites</h2><p>Abre o site e a página de contato de cada empresa encontrada e puxa telefone, WhatsApp, e-mail, Instagram, Facebook e LinkedIn.</p></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
