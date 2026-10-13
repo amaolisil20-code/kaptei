@@ -8,7 +8,7 @@ Ferramenta pessoal de prospecção da Amanda (Venturi Holding). Busca empresas, 
 - `logo.svg` — logo vetorizada (também é o favicon).
 - `api/overpass.js` — função da Vercel: acha o retângulo da cidade no Nominatim e consulta o OpenStreetMap (Overpass) tentando 4 servidores.
 - `api/site.js` — função da Vercel: lê o site da empresa + páginas de contato e devolve telefones, WhatsApp, e-mails e redes. Tem proteção contra endereços internos (SSRF).
-- `supabase/schema.sql` — tabelas `lists`, `leads`, `scripts` com RLS por usuário. JÁ APLICADO no projeto Supabase `kaptei` (ref `rsidskitgowgilsynzae`, URL https://rsidskitgowgilsynzae.supabase.co, região sa-east-1, org da Venturi). Ainda não ligado ao front.
+- `supabase/schema.sql` — tabelas `lists`, `leads`, `scripts` com RLS por usuário. JÁ APLICADO no projeto Supabase `kaptei` (ref `rsidskitgowgilsynzae`, URL https://rsidskitgowgilsynzae.supabase.co, região sa-east-1, org da Venturi). Ligado ao front (login por link mágico em app.js).
 
 ## Fontes de dados (todas grátis)
 - OpenStreetMap via `/api/overpass` (cobertura de telefone baixa)

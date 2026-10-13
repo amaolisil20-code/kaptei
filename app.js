@@ -10,11 +10,115 @@ const DEFAULT_SCRIPTS=[
  {id:'s1',name:'Primeiro contato',text:'{saudacao}! Tudo bem? Falo com a {empresa}?\n\nMeu nome é Amanda, sou da Venturi. Trabalhamos com [seu produto] para empresas de {ramo} aqui em {cidade}.\n\nPosso te mandar uma explicação rápida de como funciona?'},
  {id:'s2',name:'Retorno (sem resposta)',text:'{saudacao}! Passando para retomar minha mensagem anterior para a {empresa}.\n\nSe fizer sentido, te explico em 5 minutos como [seu produto] ajuda empresas de {ramo}. Qual o melhor horário para você?'},
  {id:'s3',name:'Convite para reunião',text:'{saudacao}! Aqui é a Amanda, da Venturi.\n\nGostaria de agendar uma conversa rápida com o responsável pela {empresa} para apresentar [seu produto]. Você teria um horário esta semana?'}];
-let store={leads:[],lists:['Geral'],scripts:DEFAULT_SCRIPTS,activeScript:'s1'};
-try{const raw=localStorage.getItem(KEY); if(raw){const p=JSON.parse(raw); store={leads:p.leads||[],lists:p.lists?.length?p.lists:['Geral'],scripts:Array.isArray(p.scripts)?p.scripts:DEFAULT_SCRIPTS,activeScript:p.activeScript||'s1'};}}catch(e){}
-const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(store))}catch(e){toast('Não foi possível salvar neste navegador.')}};
+let store={leads:[],lists:['Geral'],scripts:[],activeScript:''};
 
 function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
+
+/* ---------- Supabase (login + tabelas lists, leads, scripts) ---------- */
+const SB_URL='https://rsidskitgowgilsynzae.supabase.co', SB_KEY='sb_publishable_zaLjBDzwL05bdD5-XgKINQ_rjn9Lcry';
+const sb=window.supabase.createClient(SB_URL,SB_KEY);
+let me=null, listIds={};
+const dbFail=(what,error)=>{console.error(what,error);toast('Não consegui salvar ('+what+'). Confira a conexão.');return false};
+const nul=v=>v===''||v===undefined?null:v;
+function leadToRow(l){
+  return {source_id:l.id,source:nul(l.source),name:l.name||'(sem nome)',razao_social:nul(l.razao),category:nul(l.cat),cnpj:nul(l.cnpj),
+    phones:l.phones||[],whatsapp:l.whatsapp||[],email:nul(l.email),website:nul(l.website),instagram:nul(l.instagram),facebook:nul(l.facebook),linkedin:nul(l.linkedin),
+    address:nul(l.address),city:nul(l.city),uf:nul(l.uf),socios:l.socios||[],list_id:listIds[l.lista]||null,status:l.status||'novo',notes:nul(l.notes),
+    last_script:nul(l.lastScript),contacted_at:l.contactedAt||null,created_at:l.savedAt||new Date().toISOString()};
+}
+function rowToLead(r){
+  const name=Object.keys(listIds).find(k=>listIds[k]===r.list_id);
+  return {id:r.source_id,source:r.source||'',name:r.name,razao:r.razao_social||'',cat:r.category||'',cnpj:r.cnpj||'',phones:r.phones||[],whatsapp:r.whatsapp||[],
+    email:r.email||'',website:r.website||'',instagram:r.instagram||'',facebook:r.facebook||'',linkedin:r.linkedin||'',address:r.address||'',city:r.city||'',uf:r.uf||'',
+    socios:r.socios||[],lista:name||store.lists[0],status:r.status,notes:r.notes||'',lastScript:r.last_script||'',contactedAt:r.contacted_at||undefined,savedAt:r.created_at};
+}
+async function dbLead(l){const {error}=await sb.from('leads').upsert(leadToRow(l),{onConflict:'owner_id,source_id'});return error?dbFail('lead',error):true}
+async function dbDelLead(id){const {error}=await sb.from('leads').delete().eq('source_id',id);if(error)dbFail('remover lead',error)}
+async function dbAddList(name){const {data,error}=await sb.from('lists').upsert({name},{onConflict:'owner_id,name'}).select().single();if(error)return dbFail('lista',error);listIds[name]=data.id;return true}
+async function dbActive(id){
+  const a=await sb.from('scripts').update({is_active:false}).eq('is_active',true);
+  const b=id?await sb.from('scripts').update({is_active:true}).eq('id',id):{};
+  if(a.error||b.error)dbFail('script em uso',a.error||b.error);
+}
+const scriptTimers={};
+function dbScript(s){clearTimeout(scriptTimers[s.id]);scriptTimers[s.id]=setTimeout(async()=>{
+  const {error}=await sb.from('scripts').update({name:s.name||'Sem nome',body:s.text}).eq('id',s.id);if(error)dbFail('script',error)},600)}
+async function dbDelScript(id){const {error}=await sb.from('scripts').delete().eq('id',id);if(error)dbFail('excluir script',error)}
+
+async function fetchAll(table,order,asc){
+  let out=[];
+  for(let from=0;;from+=1000){
+    const {data,error}=await sb.from(table).select('*').order(order,{ascending:asc}).range(from,from+999);
+    if(error)throw error; out=out.concat(data); if(data.length<1000)break;
+  }
+  return out;
+}
+// Importa uma única vez o que estava salvo no navegador (chave kaptei.v1) para a conta.
+async function importLocal(){
+  const flag='kaptei.imported.'+me.id;
+  try{if(localStorage.getItem(flag))return 0}catch(e){}
+  let raw=null;try{raw=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+  let n=0;
+  if(raw){
+    const leads=(raw.leads||[]).filter(l=>l&&l.id);
+    const names=[...new Set([...(raw.lists||[]),...leads.map(l=>l.lista)].filter(Boolean))];
+    if(names.length){
+      const {data,error}=await sb.from('lists').upsert(names.map(name=>({name})),{onConflict:'owner_id,name'}).select();
+      if(error)throw error; data.forEach(r=>listIds[r.name]=r.id);
+    }
+    for(let i=0;i<leads.length;i+=200){
+      const chunk=leads.slice(i,i+200).map(leadToRow);
+      const {error}=await sb.from('leads').upsert(chunk,{onConflict:'owner_id,source_id',ignoreDuplicates:true});
+      if(error)throw error; n+=chunk.length;
+    }
+    const {count}=await sb.from('scripts').select('id',{count:'exact',head:true});
+    if(!count&&Array.isArray(raw.scripts)&&raw.scripts.length){
+      const {data,error}=await sb.from('scripts').insert(raw.scripts.map(s=>({name:s.name||'Sem nome',body:s.text||'',is_active:s.id===raw.activeScript}))).select();
+      if(error)throw error;
+    }
+  }
+  try{localStorage.setItem(flag,'1')}catch(e){}
+  return n;
+}
+async function loadAll(){
+  const imported=await importLocal();
+  let lists=await fetchAll('lists','created_at',true);
+  if(!lists.length){const {data,error}=await sb.from('lists').insert({name:'Geral'}).select();if(error)throw error;lists=data}
+  listIds={};lists.forEach(r=>listIds[r.name]=r.id);
+  let scripts=await fetchAll('scripts','created_at',true);
+  if(!scripts.length){const {data,error}=await sb.from('scripts').insert(DEFAULT_SCRIPTS.map((s,i)=>({name:s.name,body:s.text,is_active:i===0}))).select();if(error)throw error;scripts=data}
+  store.lists=lists.map(r=>r.name);
+  store.scripts=scripts.map(r=>({id:r.id,name:r.name,text:r.body}));
+  store.activeScript=(scripts.find(r=>r.is_active)||scripts[0]).id;
+  store.leads=(await fetchAll('leads','created_at',false)).map(rowToLead);
+  return imported;
+}
+
+/* ---------- login ---------- */
+const loginMsg=(t,err)=>{const m=$('#loginMsg');m.textContent=t;m.className='login-msg'+(err?' err':'');m.hidden=!t};
+$('#loginForm').addEventListener('submit',async e=>{
+  e.preventDefault();const email=$('#loginEmail').value.trim();if(!email)return;
+  $('#loginBtn').disabled=true;loginMsg('');
+  const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+'/'}});
+  $('#loginBtn').disabled=false;
+  if(error)loginMsg(error.status===429?'Muitos pedidos seguidos. Espere alguns minutos e tente de novo.':'Não consegui enviar o link: '+error.message,true);
+  else loginMsg('Link enviado para '+email+'. Abra o e-mail neste mesmo navegador e clique nele.');
+});
+document.addEventListener('click',async e=>{if(e.target.closest('[data-logout]')){await sb.auth.signOut()}});
+let bootedFor=null;
+async function onSession(session){
+  if(!session){me=null;bootedFor=null;$('#login').hidden=false;return}
+  if(bootedFor===session.user.id)return;
+  bootedFor=session.user.id;me=session.user;
+  try{
+    const imported=await loadAll();
+    $('#login').hidden=true;$('#userEmail').textContent=$('#userEmail2').textContent=me.email;
+    go('busca');refreshCounts();
+    if(imported)toast(`${imported} leads do navegador foram importados para a sua conta.`);
+  }catch(err){console.error(err);bootedFor=null;$('#login').hidden=false;loginMsg('Entrou, mas não consegui carregar os dados: '+(err.message||err),true)}
+}
+sb.auth.onAuthStateChange((_ev,session)=>{setTimeout(()=>onSession(session),0)});
+sb.auth.getSession().then(({data})=>onSession(data.session));
 
 /* ---------- navigation ---------- */
 function go(p){$$('.page').forEach(s=>s.hidden=s.id!=='p-'+p);
@@ -210,7 +314,7 @@ async function enrich(l){
     else{l.enrichGot=mergeInto(l,d);l.enrich='done'}
   }catch(e){l.enrich='fail';l.enrichMsg='O site não respondeu.'}
   const saved=store.leads.find(x=>x.id===l.id);
-  if(saved){Object.assign(saved,{phones:l.phones,whatsapp:l.whatsapp,email:l.email,instagram:l.instagram,facebook:l.facebook,linkedin:l.linkedin,website:l.website});persist()}
+  if(saved){Object.assign(saved,{phones:l.phones,whatsapp:l.whatsapp,email:l.email,instagram:l.instagram,facebook:l.facebook,linkedin:l.linkedin,website:l.website});dbLead(saved)}
   rerenderLead(l);updateHeadCount();
 }
 async function enrichMany(list){
@@ -314,8 +418,8 @@ document.addEventListener('click',e=>{
   const l=lastResults.find(x=>x.id===id)||(lastCompany&&lastCompany.id===id?lastCompany:null);
   if(!l||isSaved(id))return;
   const list=store.lists[0];
-  store.leads.unshift({...l,status:'novo',lista:currentList()||list,notes:'',savedAt:new Date().toISOString()});
-  persist();refreshCounts();b.outerHTML='<span class="saved-badge">✓ Salvo</span>';toast(`Salvo em "${currentList()||list}".`);
+  const nl={...l,status:'novo',lista:currentList()||list,notes:'',savedAt:new Date().toISOString()};
+  store.leads.unshift(nl);dbLead(nl);refreshCounts();b.outerHTML='<span class="saved-badge">✓ Salvo</span>';toast(`Salvo em "${currentList()||list}".`);
 });
 document.addEventListener('click',e=>{const b=e.target.closest('[data-enrich]');if(!b)return;const l=findLead(b.dataset.enrich);if(l){l.enrich='';enrich(l)}});
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-siteform]');if(!f)return;e.preventDefault();
@@ -337,7 +441,7 @@ function renderScriptBars(){
   const opts=store.scripts.map(s=>`<option value="${esc(s.id)}" ${s.id===store.activeScript?'selected':''}>${esc(s.name||'Sem nome')}</option>`).join('');
   $$('[data-scriptbar]').forEach(el=>{el.innerHTML=store.scripts.length?`<label for="sb-${el.closest('.page').id}">Mensagem do botão "Entrar em contato":</label><select id="sb-${el.closest('.page').id}" data-pickscript>${opts}</select> <button class="linkbtn" type="button" data-goto-scripts>Editar scripts</button>`:'<span>Crie um script para usar o botão "Entrar em contato".</span> <button class="linkbtn" type="button" data-goto-scripts>Criar script</button>'});
 }
-document.addEventListener('change',e=>{if(e.target.matches('[data-pickscript]')){store.activeScript=e.target.value;persist();renderScriptBars()}});
+document.addEventListener('change',e=>{if(e.target.matches('[data-pickscript]')){store.activeScript=e.target.value;dbActive(store.activeScript);renderScriptBars()}});
 document.addEventListener('click',e=>{if(e.target.closest('[data-goto-scripts]'))go('scripts')});
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-contact]');if(!b)return;
@@ -352,7 +456,7 @@ document.addEventListener('click',e=>{
   if(!saved){saved={...l,status:'contatado',lista:store.lists[0],notes:'',savedAt:new Date().toISOString()};store.leads.unshift(saved)}
   if(saved.status==='novo')saved.status='contatado';
   saved.contactedAt=new Date().toISOString();saved.lastScript=sc?.name||'';
-  persist();refreshCounts();
+  dbLead(saved);refreshCounts();
   if(!$('#p-leads').hidden)renderLeads();
   else{const row=document.querySelector(`.lead[data-id="${CSS.escape(id)}"]`);if(row)row.outerHTML=leadRow(l)}
   toast('WhatsApp aberto. Lead marcado como contatado.');
@@ -373,20 +477,23 @@ function renderScripts(){
 let lastField=null;
 $('#scriptsBox').addEventListener('focusin',e=>{if(e.target.matches('textarea[data-sf]'))lastField=e.target});
 $('#scriptsBox').addEventListener('input',e=>{const f=e.target.dataset.sf;if(!f)return;const card=e.target.closest('[data-script]');const s=store.scripts.find(x=>x.id===card.dataset.script);if(!s)return;
-  s[f]=e.target.value;persist();
+  s[f]=e.target.value;dbScript(s);
   if(f==='text')card.querySelector('[data-preview]').textContent=fillScript(s.text,{name:'Clínica Exemplo',city:'Uberlândia',cat:'Odontologia'});
   if(f==='name')renderScriptBars()});
 $('#scriptsBox').addEventListener('click',e=>{const card=e.target.closest('[data-script]');if(!card)return;const id=card.dataset.script;
-  if(e.target.closest('[data-usescript]')){store.activeScript=id;persist();renderScripts();renderScriptBars();toast('Script em uso no botão.')}
+  if(e.target.closest('[data-usescript]')){store.activeScript=id;dbActive(id);renderScripts();renderScriptBars();toast('Script em uso no botão.')}
   const del=e.target.closest('[data-delscript]');
-  if(del){if(del.dataset.confirm){store.scripts=store.scripts.filter(x=>x.id!==id);if(store.activeScript===id)store.activeScript=store.scripts[0]?.id||'';persist();renderScripts();renderScriptBars();toast('Script excluído.')}
+  if(del){if(del.dataset.confirm){store.scripts=store.scripts.filter(x=>x.id!==id);clearTimeout(scriptTimers[id]);dbDelScript(id);if(store.activeScript===id){store.activeScript=store.scripts[0]?.id||'';dbActive(store.activeScript)}renderScripts();renderScriptBars();toast('Script excluído.')}
     else{del.dataset.confirm='1';del.textContent='Confirmar';setTimeout(()=>{if(del.isConnected){delete del.dataset.confirm;del.textContent='Excluir'}},3000)}}
 });
 document.querySelectorAll('[data-var]').forEach(c=>c.addEventListener('click',()=>{
   const t=lastField&&lastField.isConnected?lastField:$('#scriptsBox textarea');if(!t)return;
   const v=c.dataset.var,a=t.selectionStart??t.value.length,b=t.selectionEnd??a;
   t.value=t.value.slice(0,a)+v+t.value.slice(b);t.focus();t.selectionStart=t.selectionEnd=a+v.length;t.dispatchEvent(new Event('input',{bubbles:true}))}));
-$('#addScript').addEventListener('click',()=>{const id='s'+Date.now();store.scripts.push({id,name:'Novo script',text:'{saudacao}! Falo com a {empresa}?\n\n'});if(!store.activeScript)store.activeScript=id;persist();renderScripts();renderScriptBars();
+$('#addScript').addEventListener('click',async()=>{
+  const {data,error}=await sb.from('scripts').insert({name:'Novo script',body:'{saudacao}! Falo com a {empresa}?\n\n',is_active:!store.activeScript}).select().single();
+  if(error)return dbFail('novo script',error);
+  const id=data.id;store.scripts.push({id,name:data.name,text:data.body});if(!store.activeScript)store.activeScript=id;renderScripts();renderScriptBars();
   const ta=document.querySelector(`[data-script="${id}"] textarea`);if(ta){ta.focus();ta.selectionStart=ta.value.length}});
 function currentList(){const v=$('#fList').value;return v&&v!=='*'?v:''}
 
@@ -417,11 +524,11 @@ function renderLeads(){
   </tbody></table></div></div>`;
 }
 $('#leadsBox').addEventListener('change',e=>{const f=e.target.dataset.f;if(!f)return;const id=e.target.closest('tr').dataset.id;const l=store.leads.find(x=>x.id===id);if(!l)return;
-  l[f]=e.target.value;if(f==='status'){e.target.dataset.s=l.status;if(l.status==='contatado'&&!l.contactedAt)l.contactedAt=new Date().toISOString()}persist();refreshCounts()});
+  l[f]=e.target.value;if(f==='status'){e.target.dataset.s=l.status;if(l.status==='contatado'&&!l.contactedAt)l.contactedAt=new Date().toISOString()}dbLead(l);refreshCounts()});
 $('#leadsBox').addEventListener('click',e=>{
   if(e.target.closest('[data-goto]'))return go('busca');
   const d=e.target.closest('[data-del]');if(!d)return;const tr=d.closest('tr');
-  if(d.dataset.confirm){store.leads=store.leads.filter(x=>x.id!==tr.dataset.id);persist();refreshCounts();renderLeads();toast('Lead removido.')}
+  if(d.dataset.confirm){store.leads=store.leads.filter(x=>x.id!==tr.dataset.id);dbDelLead(tr.dataset.id);refreshCounts();renderLeads();toast('Lead removido.')}
   else{d.dataset.confirm='1';d.textContent='Confirmar';setTimeout(()=>{if(d.isConnected){delete d.dataset.confirm;d.textContent='Remover'}},3000)}
 });
 ['#fList','#fStatus'].forEach(s=>$(s).addEventListener('change',renderLeads));
@@ -439,8 +546,9 @@ $('#exportBtn').addEventListener('click',()=>{
 
 /* ---------- lists (fontes page) ---------- */
 function renderLists(){$('#listsShow').innerHTML=store.lists.map(n=>`<span class="tag">${esc(n)} · ${store.leads.filter(l=>l.lista===n).length}</span>`).join('')}
-$('#addList').addEventListener('click',()=>{const n=$('#newList').value.trim();if(!n)return;if(store.lists.includes(n)){toast('Essa lista já existe.');return}
-  store.lists.push(n);persist();$('#newList').value='';renderLists();renderListSelect();toast(`Lista "${n}" criada.`)});
+$('#addList').addEventListener('click',async()=>{const n=$('#newList').value.trim();if(!n)return;if(store.lists.includes(n)){toast('Essa lista já existe.');return}
+  if(!await dbAddList(n))return;
+  store.lists.push(n);$('#newList').value='';renderLists();renderListSelect();toast(`Lista "${n}" criada.`)});
 
 /* ---------- counters ---------- */
 function refreshCounts(){
