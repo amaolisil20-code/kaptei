@@ -113,6 +113,23 @@ export function extract(html, baseUrl) {
   };
 }
 
+// Sinais para sugerir o que melhorar: idade do rodapé, construtor, formulário, agenda, loja, chat e rastreamento.
+export function signalsOf(html, hasWhats) {
+  const years = [...html.matchAll(/(?:©|&copy;|copyright)[^0-9<]{0,40}((?:19|20)\d{2})/gi)].map(m => +m[1]);
+  const builders = [[/wixstatic\.com|wix\.com/i, 'Wix'], [/webnode/i, 'Webnode'], [/sites\.google\.com/i, 'Google Sites'], [/blogspot\.com/i, 'Blogger'], [/weebly/i, 'Weebly'], [/jimdo/i, 'Jimdo']];
+  const visible = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ');
+  return {
+    year: years.length ? Math.max(...years) : 0,
+    builder: (builders.find(([rx]) => rx.test(html)) || [])[1] || '',
+    whats: hasWhats || /wa\.me|api\.whatsapp\.com|whatsapp/i.test(html),
+    form: /<form[\s>]/i.test(html) && /<(textarea|input)/i.test(html),
+    booking: /agende|agendar|agendamento|reserve|reservar|marque (sua|uma)/i.test(visible),
+    shop: /carrinho|adicionar ao carrinho|add to cart|finalizar compra|checkout/i.test(html),
+    chat: /tawk\.to|jivosite|jivochat|crisp\.chat|tidio|zopim|zendesk|intercom|blip\.ai|take\.net|botpress|hubspot.*conversations/i.test(html),
+    track: /googletagmanager|google-analytics|gtag\(|fbq\(|connect\.facebook\.net.*fbevents/i.test(html),
+  };
+}
+
 export default async function handler(req, res) {
   const raw = String(req.query?.url ?? '').trim().slice(0, 500);
   if (!raw) return res.status(400).json({ error: 'Informe o site.' });
@@ -143,6 +160,7 @@ export default async function handler(req, res) {
     linkedin: merge('linkedin').slice(0, 2),
     pagesRead: 1 + pages.filter(Boolean).length,
     https: new URL(home.url).protocol === 'https:',
+    signals: signalsOf(home.html, whats.length > 0),
     responsive: /<meta[^>]+name=["']viewport["']/i.test(home.html),
   });
 }

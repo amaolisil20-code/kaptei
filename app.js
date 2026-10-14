@@ -299,63 +299,124 @@ function webStatus(l){
 }
 const webPill=l=>{const w=webStatus(l);return `<span class="pill web ${w.c}"${w.tip?` title="${esc(w.tip)}"`:''}>${w.t}</span>`};
 const webMatch=(l,f)=>{if(!f)return true;const w=webStatus(l);return f==='opp'?w.opp:f==='site'?(w.k==='site'||w.k==='weak'||w.k==='down'):w.k===f};
-/* sugestões de serviço por lead: lacunas da presença digital + automações típicas do ramo */
+/* sugestões por lead: sinais reais (contatos, site lido, nome) + automações típicas do ramo */
+// [regex do ramo, [[ideia, motivo, pontos, condição]]]. Condições: priv (não é órgão público), nobook, noshop
 const SEG_IDEAS=[
- [/odont|dent|clinic|medic|saude|psicolog|fisio|nutri|laborat|hospital/,[
-  ['Agendamento online com lembrete automático por WhatsApp','reduz faltas e tira a recepção do telefone'],
-  ['Ficha do paciente e retorno automático (ex.: limpeza a cada 6 meses)','traz o paciente de volta sem esforço da equipe']]],
- [/academia|pilates|crossfit|fitness|esporte/,[
-  ['Cobrança recorrente automática e aviso de mensalidade em atraso','menos inadimplência'],
-  ['Reativação de alunos inativos por WhatsApp e aula experimental com captura de contato','mais matrículas']]],
- [/restaurante|aliment|cafe|bar|padaria|lanchonete|pizza|confeit/,[
-  ['Cardápio digital com pedido direto por WhatsApp','menos comissão de aplicativo de delivery'],
-  ['Programa de fidelidade e disparo de promoções para clientes antigos','mais recompra']]],
- [/imobili/,[
-  ['Site com busca de imóveis e CRM que distribui os contatos dos portais','nenhum interessado fica sem resposta'],
-  ['Resposta automática ao interessado em até 1 minuto','quem responde primeiro costuma fechar']]],
- [/advoc|contab|seguro/,[
-  ['Portal do cliente com envio de documentos e avisos de prazo automáticos','menos cobrança manual por documento'],
-  ['Captação pelo Google e formulário de triagem de casos','atrai cliente já qualificado']]],
- [/beleza|salao|estetica|barbear|cabele/,[
-  ['Agenda online com confirmação e lembrete automáticos','menos buracos na agenda'],
-  ['Pacotes, assinatura e aviso de retorno (ex.: retoque em 30 dias)','receita recorrente']]],
- [/pet|veterin/,[
-  ['Lembrete automático de vacina e banho por WhatsApp','retorno garantido'],
-  ['Agenda online e loja virtual de produtos','mais um canal de venda']]],
- [/educa|escola|curso|idioma|faculdade/,[
-  ['Matrícula online e funil de interessados com follow-up automático','mais conversão de leads'],
-  ['Comunicação com pais e alunos por WhatsApp automatizada','menos ligações para a secretaria']]],
+ [/hospital|maternidade|pronto.?socorro|upa\b/,[
+  ['Chatbot no WhatsApp/site com horário de visita, exames, como chegar e telefones por setor','corta ligações repetidas para a recepção',66],
+  ['Resultado de exames e comprovantes online com aviso automático','paciente não precisa voltar só para buscar papel',58],
+  ['Pesquisa de satisfação automática após o atendimento e gestão das avaliações do Google','dá dados para melhorar e responde reclamações',52]]],
+ [/odont|dent|clinic|medic|saude|psicolog|fisio|nutri|laborat|consultorio/,[
+  ['Agendamento online com confirmação e lembrete automático por WhatsApp','reduz faltas e tira a recepção do telefone',68,'nobook'],
+  ['Retorno automático do paciente (ex.: limpeza a cada 6 meses, revisão anual)','traz o paciente de volta sem esforço da equipe',60,'priv'],
+  ['Ficha digital e envio de receitas/laudos por link seguro','menos papel e menos retrabalho',50],
+  ['Captação de pacientes novos por Google Meu Negócio e landing de especialidade','atrai quem já procura o serviço',55,'priv']]],
+ [/academia|pilates|crossfit|fitness|esporte|natacao|danca|luta/,[
+  ['Cobrança recorrente automática e aviso de mensalidade em atraso','menos inadimplência',66,'priv'],
+  ['Reativação de alunos inativos por WhatsApp','recupera receita parada',62,'priv'],
+  ['Aula experimental com captura de contato e follow-up automático','mais matrículas',58,'priv'],
+  ['App ou área do aluno com treino, presença e agenda de aulas','retenção',50]]],
+ [/restaurante|aliment|cafe|bar\b|padaria|lanchonete|pizza|confeit|churrasc|sorvet|acai/,[
+  ['Cardápio digital com pedido direto por WhatsApp','menos comissão de aplicativo de delivery',66,'noshop'],
+  ['Programa de fidelidade e disparo de promoções para clientes antigos','mais recompra',58],
+  ['Reservas online de mesa com confirmação automática','menos no-show',52,'nobook']]],
+ [/imobili|corretor/,[
+  ['CRM que distribui os contatos dos portais entre os corretores','nenhum interessado fica sem resposta',68],
+  ['Resposta automática ao interessado em até 1 minuto','quem responde primeiro costuma fechar',64],
+  ['Site com busca e filtros de imóveis e captura de leads','a vitrine própria diminui a dependência dos portais',58]]],
+ [/advoc|juridic|contab|seguro|despach/,[
+  ['Portal do cliente com envio de documentos e avisos de prazo automáticos','menos cobrança manual por documento',64],
+  ['Triagem de casos por formulário inteligente','atrai cliente já qualificado',56,'priv'],
+  ['Conteúdo e Google Meu Negócio para captação local','autoridade e novos contatos',50,'priv']]],
+ [/beleza|salao|estetica|barbear|cabele|manicure|spa\b/,[
+  ['Agenda online com confirmação e lembrete automáticos','menos buracos na agenda',68,'nobook'],
+  ['Pacotes, assinatura e aviso de retorno (ex.: retoque em 30 dias)','receita recorrente',58],
+  ['Vitrine de antes e depois integrada ao Instagram e ao WhatsApp','prova social que converte',50]]],
+ [/pet|veterin|animal/,[
+  ['Lembrete automático de vacina, vermífugo e banho por WhatsApp','retorno garantido',66],
+  ['Agenda online e loja virtual de produtos','mais um canal de venda',54,'noshop']]],
+ [/educa|escola|colegio|curso|idioma|faculdade|universid/,[
+  ['Matrícula online e funil de interessados com follow-up automático','mais conversão de leads',64,'priv'],
+  ['Comunicação com pais e alunos por WhatsApp automatizada','menos ligações para a secretaria',58],
+  ['Portal com boletos, boletins e declarações automáticos','secretaria mais leve',50]]],
  [/hotel|hosped|pousada|hostel|motel/,[
-  ['Motor de reservas direto no site com pagamento','menos comissão de OTA'],
-  ['Mensagens automáticas pré e pós-estadia (check-in, avaliação)','mais avaliações e retorno']]],
- [/oficina|automotiv|mecanic|autopeca/,[
-  ['Orçamento online e aviso de revisão por data ou km','cliente volta sozinho'],
-  ['Acompanhamento do serviço por WhatsApp (carro pronto, aprovação de orçamento)','menos ligações e mais confiança']]],
- [/constru|engenh|arquitet/,[
-  ['Site com portfólio de obras e formulário de orçamento','prova social que fecha contrato'],
-  ['Painel de acompanhamento de obra para o cliente','diferencial e menos cobrança de status']]],
- [/mercado|moda|roupa|loja|otica|movel|moveis|joia|flor|farmac|varejo/,[
-  ['Catálogo online com pedido por WhatsApp ou loja virtual','vende fora do horário da loja'],
-  ['Lista de clientes com disparo de ofertas e aviso de reposição','mais recompra']]],
+  ['Motor de reservas direto no site com pagamento','menos comissão de OTA',66,'nobook'],
+  ['Mensagens automáticas pré e pós-estadia (check-in, avaliação)','mais avaliações e retorno',56]]],
+ [/oficina|automotiv|mecanic|autopeca|funilaria|lava/,[
+  ['Orçamento online e aviso de revisão por data ou km','cliente volta sozinho',64],
+  ['Acompanhamento do serviço por WhatsApp (carro pronto, aprovação de orçamento)','menos ligações e mais confiança',58]]],
+ [/constru|engenh|arquitet|incorporad/,[
+  ['Site com portfólio de obras e formulário de orçamento','prova social que fecha contrato',62],
+  ['Painel de acompanhamento de obra para o cliente','diferencial e menos cobrança de status',52]]],
+ [/mercado|moda|roupa|loja|otica|movel|moveis|joia|flor|farmac|varejo|boutique/,[
+  ['Catálogo online com pedido por WhatsApp ou loja virtual','vende fora do horário da loja',64,'noshop'],
+  ['Lista de clientes com disparo de ofertas e aviso de reposição','mais recompra',56]]],
  [/tecnolog|software|marketing|coworking/,[
-  ['Funil de captação com CRM e automação de e-mail/WhatsApp','organiza o comercial'],
-  ['Painel de indicadores integrado às ferramentas que já usam','decisão com dados']]],
+  ['Funil de captação com CRM e automação de e-mail/WhatsApp','organiza o comercial',60],
+  ['Painel de indicadores integrado às ferramentas que já usam','decisão com dados',50]]],
 ];
+const FREEMAIL=/@(gmail|hotmail|outlook|yahoo|live|uol|bol|ig|terra)\./i;
+const PUBLIC=/municipal|prefeitura|estadual|federal|secretaria|publico|sus\b|fundacao|autarquia|camara/;
+const isMobile=p=>{const d=digits(p).replace(/^55/,'');return d.length===11&&d[2]==='9'};
+function leadContext(l){
+  const w=webStatus(l), i=l.siteInfo||null, phones=l.phones||[], wa=l.whatsapp||[];
+  const read=!!i&&i.https!==undefined;
+  const year=new Date().getFullYear();
+  return {w,i,read,pub:PUBLIC.test(norm(l.name+' '+(l.razao||''))),
+    noPhone:!phones.length&&!wa.length, landline:phones.length>0&&!wa.length&&!phones.some(isMobile),
+    freeMail:!!l.email&&FREEMAIL.test(l.email),
+    old:read&&!!i.year&&i.year<=year-3, builder:read&&!!i.builder, noWhats:read&&!i.whats, noForm:read&&!i.form,
+    nobook:!read||!i.booking, noshop:!read||!i.shop, nochat:read&&!i.chat, notrack:read&&!i.track,
+    noSocial:!l.instagram&&!l.facebook};
+}
+function facts(l){
+  const c=leadContext(l), f=[c.w.t];
+  if(c.pub)f.push('órgão público');
+  if(c.landline)f.push('só telefone fixo');
+  if(c.noPhone)f.push('sem telefone nas bases');
+  if(c.freeMail)f.push('e-mail gratuito ('+l.email.split('@')[1]+')');
+  if(c.old)f.push('site com rodapé de '+c.i.year);
+  if(c.builder)f.push('site em construtor ('+c.i.builder+')');
+  if(c.noWhats)f.push('site sem link de WhatsApp');
+  if(c.noForm)f.push('site sem formulário');
+  if(c.notrack)f.push('site sem Analytics/Pixel');
+  if(c.noSocial)f.push('sem rede social');
+  return f;
+}
 function ideas(l){
-  const w=webStatus(l), out=[];
-  if(w.k==='none')out.push(['Criar site/landing page com botão de WhatsApp e cadastro no Google Meu Negócio','não achamos site nas bases abertas; confirme no Google antes de oferecer','alta']);
-  if(w.k==='social')out.push(['Criar site próprio ligado ao Instagram, com WhatsApp e Google Meu Negócio','depender só de rede social limita a captação','alta']);
-  if(w.k==='down')out.push(['Recuperar ou refazer o site que saiu do ar','o endereço divulgado não abre, e cada visita é um cliente perdido','alta']);
-  if(w.k==='weak')out.push([`Modernizar o site (${w.tip})`,'site inseguro ou ruim no celular afasta clientes e piora o Google','alta']);
-  if(w.k==='site')out.push(['Integrar o formulário do site ao WhatsApp/CRM e trabalhar SEO local','o site existe, mas pode gerar mais contatos','média']);
+  const c=leadContext(l), w=c.w, out=[];
+  const add=(t,d,s)=>out.push([t,d,s>=80?'alta':s>=55?'média':'baixa',s]);
+  if(w.k==='none')add('Criar site/landing page com botão de WhatsApp e cadastro no Google Meu Negócio','não achamos site nas bases abertas; confirme no Google antes de oferecer',100);
+  if(w.k==='social')add('Criar site próprio ligado ao Instagram, com WhatsApp e Google Meu Negócio','depender só de rede social limita a captação',95);
+  if(w.k==='down')add('Recuperar ou refazer o site que saiu do ar','o endereço divulgado não abre, e cada visita é um cliente perdido',98);
+  if(w.k==='weak')add(`Modernizar o site (${w.tip})`,'site inseguro ou ruim no celular afasta clientes e piora o Google',90);
+  if(c.old)add(`Redesenhar o site (o rodapé ainda mostra © ${c.i.year})`,'site parado no tempo passa a imagem de empresa parada',84);
+  if(c.noWhats)add('Colocar botão e atendimento por WhatsApp no site','hoje o site não tem nenhum link de WhatsApp',80);
+  if(c.noForm&&c.noWhats)add('Formulário de contato/orçamento ligado ao CRM','o site não tem nenhuma forma de captar contato',74);
+  if(c.builder)add(`Sair do construtor ${c.i.builder} para um site próprio, rápido e otimizado`,'construtores gratuitos limitam SEO e domínio',60);
+  if(c.notrack)add('Instalar Analytics e Pixel e rodar campanhas locais','o site não mede nem remarketing o visitante',55);
+  if(c.nochat&&!c.pub)add('Chatbot de atendimento no site e no WhatsApp','responde fora do horário e qualifica o contato',52);
+  if(c.landline)add('Atendimento em WhatsApp Business com resposta automática e catálogo','só aparece telefone fixo; muita gente prefere chamar no WhatsApp',88);
+  if(c.noPhone)add('Captar contatos por Google Meu Negócio e página com botão de ligar/WhatsApp','nenhum telefone encontrado nas bases',66);
+  if(c.freeMail)add('E-mail profissional no domínio da empresa','usa e-mail gratuito, o que passa pouca confiança',48);
+  if(c.pub){
+    add('Portal do cidadão com chatbot e consulta de atendimento/fila','órgão público: o ganho está em atendimento e transparência',72);
+    add('Painel de indicadores para a gestão','decisão baseada em dados do atendimento',50);
+  }
   const key=norm([l.cat,l.name].join(' '));
   const seg=SEG_IDEAS.find(([rx])=>rx.test(key));
-  if(seg)seg[1].forEach(([t,d])=>out.push([t,d,'média']));
-  else out.push(['Atendimento automático no WhatsApp Business com respostas rápidas e CRM simples','centraliza os contatos e acelera a resposta','média']);
-  if(!l.instagram&&!l.facebook)out.push(['Presença em redes sociais com agendamento de posts','nenhuma rede social encontrada nas bases','baixa']);
-  return out.slice(0,5);
+  if(seg)seg[1].forEach(([t,d,s,cond])=>{
+    if(cond==='priv'&&c.pub)return;
+    if(cond==='nobook'&&!c.nobook)return;
+    if(cond==='noshop'&&!c.noshop)return;
+    add(t,d,s);
+  });
+  else add('Atendimento automático no WhatsApp Business com respostas rápidas e CRM simples','centraliza os contatos e acelera a resposta',50);
+  if(c.noSocial&&!c.pub)add('Presença em redes sociais com agendamento de posts','nenhuma rede social encontrada nas bases',40);
+  out.sort((a,b)=>b[3]-a[3]);
+  return out.slice(0,6);
 }
-const ideasHTML=l=>{const it=ideas(l);return `<details class="ideas"><summary>Como ajudar (${it.length} ideias)</summary><ul>${it.map(([t,d,p])=>`<li><b>${esc(t)}</b> <span class="prio ${p}">${p}</span><br><span>${esc(d)}</span></li>`).join('')}</ul></details>`};
+const ideasHTML=l=>{const it=ideas(l);return `<details class="ideas"><summary>Como ajudar (${it.length} ideias)</summary><div class="facts">Sinais: ${esc(facts(l).join(' · '))}</div><ul>${it.map(([t,d,p])=>`<li><b>${esc(t)}</b> <span class="prio ${p}">${p}</span><br><span>${esc(d)}</span></li>`).join('')}</ul></details>`};
 const resultScore=l=>!!l.website*2+l.phones.length+!!l.email+!!l.website+!!l.instagram;
 
 /* ---------- CNAE hint (IBGE) ---------- */
@@ -431,7 +492,7 @@ async function enrich(l){
     const r=await fetch('/api/site?'+new URLSearchParams({url:l.website}));
     const d=await r.json();
     if(!r.ok||!d.ok){l.enrich='fail';l.enrichMsg=d.error||'O site não abriu.';l.siteDown=r.ok&&d.ok===false}
-    else{l.enrichGot=mergeInto(l,d);l.enrich='done';l.siteDown=false;l.siteInfo={https:d.https,responsive:d.responsive}}
+    else{l.enrichGot=mergeInto(l,d);l.enrich='done';l.siteDown=false;l.siteInfo={https:d.https,responsive:d.responsive,...(d.signals||{})}}
   }catch(e){l.enrich='fail';l.enrichMsg='O site não respondeu.'}
   const saved=store.leads.find(x=>x.id===l.id);
   if(saved){Object.assign(saved,{phones:l.phones,whatsapp:l.whatsapp,email:l.email,instagram:l.instagram,facebook:l.facebook,linkedin:l.linkedin,website:l.website});dbLead(saved)}
