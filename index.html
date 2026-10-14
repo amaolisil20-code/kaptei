@@ -156,6 +156,7 @@ h2{font:600 16px/1.3 var(--display);margin:0;letter-spacing:-.01em}
 .pill.ok{background:var(--ok-bg);color:var(--ok)}
 .pill.warn{background:var(--warn-bg);color:var(--warn)}
 .pill.err{background:var(--err-bg);color:var(--err)}
+.pill.web{margin-left:6px;vertical-align:middle;font-size:11px;padding:1px 8px}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th{text-align:left;font-weight:500;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}
 td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -257,6 +258,8 @@ tr:last-child td{border-bottom:0}
             <select id="uf"><option value="">Escolha o estado</option></select></div>
           <div class="field"><label for="city">Cidade</label>
             <input id="city" list="cities" placeholder="Todas as cidades do estado" autocomplete="off"><datalist id="cities"></datalist></div>
+          <div class="field"><label for="fSiteBusca">Presença na internet</label>
+            <select id="fSiteBusca"><option value="">Todas</option><option value="opp">Oportunidades (sem site, só rede social ou site com problema)</option><option value="none">Sem site</option><option value="social">Só rede social</option><option value="site">Com site</option></select></div>
           <label class="check"><input type="checkbox" id="onlyPhone"> Só com telefone</label>
         </div>
 
@@ -289,6 +292,8 @@ tr:last-child td{border-bottom:0}
         <div class="field"><label for="fList">Lista</label><select id="fList"></select></div>
         <div class="field"><label for="fStatus">Status</label>
           <select id="fStatus"><option value="">Todos</option><option value="novo">Novo</option><option value="contatado">Contatado</option><option value="respondeu">Respondeu</option><option value="cliente">Cliente</option><option value="descartado">Descartado</option></select></div>
+        <div class="field"><label for="fSite">Presença na internet</label>
+          <select id="fSite"><option value="">Todas</option><option value="opp">Oportunidades</option><option value="none">Sem site</option><option value="social">Só rede social</option><option value="site">Com site</option></select></div>
         <div class="field"><label for="fText">Procurar nos salvos</label><input id="fText" placeholder="Nome, cidade, telefone…"></div>
       </div>
       <div class="script-bar" data-scriptbar></div>

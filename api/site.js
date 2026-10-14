@@ -142,5 +142,7 @@ export default async function handler(req, res) {
     facebook: merge('facebook').slice(0, 2),
     linkedin: merge('linkedin').slice(0, 2),
     pagesRead: 1 + pages.filter(Boolean).length,
+    https: new URL(home.url).protocol === 'https:',
+    responsive: /<meta[^>]+name=["']viewport["']/i.test(home.html),
   });
 }
