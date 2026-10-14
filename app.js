@@ -502,7 +502,7 @@ async function enrichMany(list){
   const queue=list.filter(l=>l.website&&!l.enrich).slice(0,40);
   const worker=async()=>{while(queue.length){await enrich(queue.shift())}};
   await Promise.all([worker(),worker(),worker()]);
-  if(mode==='empresas'&&$('#fSiteBusca').value&&lastResults.length)renderResults($('#q').value,matchTags($('#q').value));
+  if(mode==='empresas'&&($('#fSiteBusca').value||$('#fOrdem').value==='opp')&&lastResults.length)renderResults($('#q').value,matchTags($('#q').value));
 }
 const hasContact=l=>(l.phones?.length||l.whatsapp?.length);
 function updateHeadCount(){const el=document.querySelector('#withPhone');if(el)el.textContent=lastResults.filter(hasContact).length}
@@ -539,7 +539,8 @@ async function searchEmpresas(term){
 function renderResults(term,hits){
   const only=$('#onlyPhone').checked;
   const fs=$('#fSiteBusca').value;
-  const list=lastResults.filter(l=>(!only||hasContact(l))&&webMatch(l,fs));
+  let list=lastResults.filter(l=>(!only||hasContact(l))&&webMatch(l,fs));
+  if($('#fOrdem').value==='opp'){const sc=new Map(list.map(l=>[l,ideas(l)[0][3]]));list=[...list].sort((a,b)=>(!!hasContact(b)-!!hasContact(a))||sc.get(b)-sc.get(a))}
   const semSite=lastResults.filter(l=>webStatus(l).opp).length;
   const withPhone=lastResults.filter(hasContact).length;
   const res=$('#results');
@@ -550,7 +551,9 @@ function renderResults(term,hits){
     ${list.length>300?'<p class="lede" style="margin-top:10px">Mostrando os 300 primeiros. Refine pela cidade para ver o resto.</p>':''}
     <p class="lede" style="margin-top:12px;font-size:12.5px">Fontes: © colaboradores do OpenStreetMap e Overture Maps Foundation. Nenhuma base tem todas as empresas.</p>`;
 }
-['#onlyPhone','#fSiteBusca'].forEach(id=>$(id).addEventListener('change',()=>{if(lastResults.length&&mode==='empresas')renderResults($('#q').value,matchTags($('#q').value))}));
+try{const o=localStorage.getItem('kaptei.ordem');if(o)$('#fOrdem').value=o}catch(e){}
+$('#fOrdem').addEventListener('change',()=>{try{localStorage.setItem('kaptei.ordem',$('#fOrdem').value)}catch(e){}});
+['#onlyPhone','#fSiteBusca','#fOrdem'].forEach(id=>$(id).addEventListener('change',()=>{if(lastResults.length&&mode==='empresas')renderResults($('#q').value,matchTags($('#q').value))}));
 
 /* ---------- search: CNPJ ---------- */
 const fmtCnpj=c=>c.length===14?`${c.slice(0,2)}.${c.slice(2,5)}.${c.slice(5,8)}/${c.slice(8,12)}-${c.slice(12)}`:c;
