@@ -417,6 +417,19 @@ function ideas(l){
   return out.slice(0,6);
 }
 const ideasHTML=l=>{const it=ideas(l);return `<details class="ideas"><summary>Como ajudar (${it.length} ideias)</summary><div class="facts">Sinais: ${esc(facts(l).join(' · '))}</div><ul>${it.map(([t,d,p])=>`<li><b>${esc(t)}</b> <span class="prio ${p}">${p}</span><br><span>${esc(d)}</span></li>`).join('')}</ul></details>`};
+/* nota de oportunidade (0 a 100): presença digital (até 60) + alcance (até 25) + extras (até 15), menos 10 se for órgão público */
+function oppScore(l){
+  const c=leadContext(l), k=c.w.k;
+  let web=k==='none'?60:k==='social'?55:k==='weak'?52:k==='down'?50:c.old?45:c.noWhats?35:c.builder?25:(c.notrack||c.noForm)?15:5;
+  const phones=l.phones||[], wa=l.whatsapp||[];
+  const reach=(wa.length||phones.some(isMobile))?25:phones.length?12:l.email?8:0;
+  const extras=Math.min(15,(c.freeMail?5:0)+(c.noSocial?5:0)+(c.noForm?5:0)+(c.notrack?5:0)+(c.nochat?5:0));
+  const pub=c.pub?10:0;
+  const n=Math.max(0,Math.min(100,web+reach+extras-pub));
+  return {n,tip:`Presença digital ${web} · Alcance ${reach} · Extras ${extras}${pub?' · Órgão público −10':''}`};
+}
+const notaPill=l=>{const o=oppScore(l);return `<span class="pill web ${o.n>=70?'ok':o.n>=50?'warn':''}" title="${esc(o.tip)}">Nota ${o.n}</span>`};
+const notaMatch=(l,f)=>!f||oppScore(l).n>=+f;
 const resultScore=l=>!!l.website*2+l.phones.length+!!l.email+!!l.website+!!l.instagram;
 
 /* ---------- CNAE hint (IBGE) ---------- */
@@ -458,7 +471,7 @@ const gq=l=>encodeURIComponent([l.name,l.city,l.uf].filter(Boolean).join(' '));
 function leadRow(l){
   const saved=isSaved(l.id);
   return `<div class="lead" data-id="${esc(l.id)}">
-    <div><div class="name">${esc(l.name)}${webPill(l)}</div>
+    <div><div class="name">${esc(l.name)}${webPill(l)}${notaPill(l)}</div>
       <div class="meta">${l.cat?`<span class="cat">${esc(l.cat)}</span>`:''}${esc([l.address,l.city&&l.uf?l.city+' – '+l.uf:l.city].filter(Boolean).join(' · '))}</div>${ideasHTML(l)}</div>
     <div class="contacts">${contactsHTML(l)}</div>
     <div class="actions">
@@ -502,7 +515,7 @@ async function enrichMany(list){
   const queue=list.filter(l=>l.website&&!l.enrich).slice(0,40);
   const worker=async()=>{while(queue.length){await enrich(queue.shift())}};
   await Promise.all([worker(),worker(),worker()]);
-  if(mode==='empresas'&&($('#fSiteBusca').value||$('#fOrdem').value==='opp')&&lastResults.length)renderResults($('#q').value,matchTags($('#q').value));
+  if(mode==='empresas'&&($('#fSiteBusca').value||$('#fNotaBusca').value||$('#fOrdem').value==='opp')&&lastResults.length)renderResults($('#q').value,matchTags($('#q').value));
 }
 const hasContact=l=>(l.phones?.length||l.whatsapp?.length);
 function updateHeadCount(){const el=document.querySelector('#withPhone');if(el)el.textContent=lastResults.filter(hasContact).length}
@@ -539,8 +552,8 @@ async function searchEmpresas(term){
 function renderResults(term,hits){
   const only=$('#onlyPhone').checked;
   const fs=$('#fSiteBusca').value;
-  let list=lastResults.filter(l=>(!only||hasContact(l))&&webMatch(l,fs));
-  if($('#fOrdem').value==='opp'){const sc=new Map(list.map(l=>[l,ideas(l)[0][3]]));list=[...list].sort((a,b)=>(!!hasContact(b)-!!hasContact(a))||sc.get(b)-sc.get(a))}
+  let list=lastResults.filter(l=>(!only||hasContact(l))&&webMatch(l,fs)&&notaMatch(l,$('#fNotaBusca').value));
+  if($('#fOrdem').value==='opp'){const sc=new Map(list.map(l=>[l,oppScore(l).n]));list=[...list].sort((a,b)=>sc.get(b)-sc.get(a)||(!!hasContact(b)-!!hasContact(a)))}
   const semSite=lastResults.filter(l=>webStatus(l).opp).length;
   const withPhone=lastResults.filter(hasContact).length;
   const res=$('#results');
@@ -553,7 +566,7 @@ function renderResults(term,hits){
 }
 try{const o=localStorage.getItem('kaptei.ordem');if(o)$('#fOrdem').value=o}catch(e){}
 $('#fOrdem').addEventListener('change',()=>{try{localStorage.setItem('kaptei.ordem',$('#fOrdem').value)}catch(e){}});
-['#onlyPhone','#fSiteBusca','#fOrdem'].forEach(id=>$(id).addEventListener('change',()=>{if(lastResults.length&&mode==='empresas')renderResults($('#q').value,matchTags($('#q').value))}));
+['#onlyPhone','#fSiteBusca','#fNotaBusca','#fOrdem'].forEach(id=>$(id).addEventListener('change',()=>{if(lastResults.length&&mode==='empresas')renderResults($('#q').value,matchTags($('#q').value))}));
 
 /* ---------- search: CNPJ ---------- */
 const fmtCnpj=c=>c.length===14?`${c.slice(0,2)}.${c.slice(2,5)}.${c.slice(5,8)}/${c.slice(8,12)}-${c.slice(12)}`:c;
@@ -704,7 +717,7 @@ function renderListSelect(){
 const STATUSES=[['novo','Novo'],['contatado','Contatado'],['respondeu','Respondeu'],['cliente','Cliente'],['descartado','Descartado']];
 function filteredLeads(){
   const L=$('#fList').value,S=$('#fStatus').value,T=norm($('#fText').value);
-  return store.leads.filter(l=>(L==='*'||!L||l.lista===L)&&(!S||l.status===S)&&webMatch(l,$('#fSite').value)&&(!T||norm([l.name,l.city,l.uf,l.cat,l.email,(l.phones||[]).join(' '),l.notes].join(' ')).includes(T)));
+  return store.leads.filter(l=>(L==='*'||!L||l.lista===L)&&(!S||l.status===S)&&webMatch(l,$('#fSite').value)&&notaMatch(l,$('#fNota').value)&&(!T||norm([l.name,l.city,l.uf,l.cat,l.email,(l.phones||[]).join(' '),l.notes].join(' ')).includes(T)));
 }
 function renderLeads(){
   renderListSelect();
@@ -713,7 +726,7 @@ function renderLeads(){
   if(!ls.length){box.innerHTML='<div class="list"><div class="empty"><b>Nenhum lead com esses filtros.</b></div></div>';return}
   box.innerHTML=`<div class="list"><div class="table-wrap"><table><thead><tr><th>Empresa</th><th>Contato</th><th>Lista</th><th>Status</th><th>Anotação</th><th></th></tr></thead><tbody>
   ${ls.map(l=>{const p=(l.whatsapp||[])[0]||(l.phones||[])[0],w=p&&waLink(p);return `<tr data-id="${esc(l.id)}">
-    <td style="min-width:200px"><b>${esc(l.name)}</b>${webPill(l)}<div style="color:var(--muted);font-size:12px">${esc([l.cat,[l.city,l.uf].filter(Boolean).join(' – ')].filter(Boolean).join(' · '))}</div>${ideasHTML(l)}</td>
+    <td style="min-width:200px"><b>${esc(l.name)}</b>${webPill(l)}${notaPill(l)}<div style="color:var(--muted);font-size:12px">${esc([l.cat,[l.city,l.uf].filter(Boolean).join(' – ')].filter(Boolean).join(' · '))}</div>${ideasHTML(l)}</td>
     <td style="min-width:170px;font-size:12.5px">${p?`<span class="mono">${esc(p)}</span>${w?` · <a href="${w}" target="_blank" rel="noopener">WhatsApp</a>`:''}<br>`:''}${l.email?esc(l.email)+'<br>':''}${l.instagram?`<a href="${esc(l.instagram)}" target="_blank" rel="noopener">Instagram</a>`:''}${!p&&!l.email&&!l.instagram?'<span style="color:var(--muted)">—</span>':''}</td>
     <td><select class="note-in" data-f="lista" aria-label="Lista">${store.lists.map(n=>`<option ${n===l.lista?'selected':''}>${esc(n)}</option>`).join('')}</select></td>
     <td><select class="status" data-f="status" data-s="${l.status}" aria-label="Status">${STATUSES.map(([v,t])=>`<option value="${v}" ${v===l.status?'selected':''}>${t}</option>`).join('')}</select></td>
@@ -729,14 +742,14 @@ $('#leadsBox').addEventListener('click',e=>{
   if(d.dataset.confirm){store.leads=store.leads.filter(x=>x.id!==tr.dataset.id);dbDelLead(tr.dataset.id);refreshCounts();renderLeads();toast('Lead removido.')}
   else{d.dataset.confirm='1';d.textContent='Confirmar';setTimeout(()=>{if(d.isConnected){delete d.dataset.confirm;d.textContent='Remover'}},3000)}
 });
-['#fList','#fStatus','#fSite'].forEach(s=>$(s).addEventListener('change',renderLeads));
+['#fList','#fStatus','#fSite','#fNota'].forEach(s=>$(s).addEventListener('change',renderLeads));
 $('#fText').addEventListener('input',renderLeads);
 
 $('#exportBtn').addEventListener('click',()=>{
   const ls=filteredLeads();if(!ls.length){toast('Nenhum lead para exportar.');return}
-  const cols=['Empresa','Razão social','Ramo','WhatsApp','Telefones','E-mail','Site','Situação na internet','Sugestões','Instagram','CNPJ','Endereço','Cidade','UF','Sócios','Lista','Status','Anotação','Fonte','Salvo em'];
+  const cols=['Empresa','Razão social','Ramo','WhatsApp','Telefones','E-mail','Site','Situação na internet','Nota de oportunidade','Sugestões','Instagram','CNPJ','Endereço','Cidade','UF','Sócios','Lista','Status','Anotação','Fonte','Salvo em'];
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  const rows=ls.map(l=>[l.name,l.razao||'',l.cat,(l.whatsapp||[]).join(' / '),(l.phones||[]).join(' / '),l.email,l.website,webStatus(l).t,ideas(l).map(i=>i[0]).join(' | '),l.instagram,l.cnpj?fmtCnpj(l.cnpj):'',l.address,l.city,l.uf,(l.socios||[]).map(s=>s.nome).join(' / '),l.lista,l.status,l.notes,l.source,(l.savedAt||'').slice(0,10).split('-').reverse().join('/')].map(q).join(';'));
+  const rows=ls.map(l=>[l.name,l.razao||'',l.cat,(l.whatsapp||[]).join(' / '),(l.phones||[]).join(' / '),l.email,l.website,webStatus(l).t,oppScore(l).n,ideas(l).map(i=>i[0]).join(' | '),l.instagram,l.cnpj?fmtCnpj(l.cnpj):'',l.address,l.city,l.uf,(l.socios||[]).map(s=>s.nome).join(' / '),l.lista,l.status,l.notes,l.source,(l.savedAt||'').slice(0,10).split('-').reverse().join('/')].map(q).join(';'));
   const blob=new Blob(['﻿'+[cols.map(q).join(';'),...rows].join('\r\n')],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`kaptei-leads-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(a);a.click();a.remove();
   toast(`${ls.length} leads exportados.`);

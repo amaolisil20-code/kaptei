@@ -269,8 +269,10 @@ tr:last-child td{border-bottom:0}
             <input id="city" list="cities" placeholder="Todas as cidades do estado" autocomplete="off"><datalist id="cities"></datalist></div>
           <div class="field"><label for="fSiteBusca">Presença na internet</label>
             <select id="fSiteBusca"><option value="">Todas</option><option value="opp">Oportunidades (site não encontrado, só rede social ou site com problema)</option><option value="none">Site não encontrado</option><option value="social">Só rede social</option><option value="site">Com site</option></select></div>
+          <div class="field"><label for="fNotaBusca">Nota de oportunidade</label>
+            <select id="fNotaBusca"><option value="">Qualquer nota</option><option value="70">Nota 70 ou mais (alta)</option><option value="50">Nota 50 ou mais</option></select></div>
           <div class="field"><label for="fOrdem">Ordenar por</label>
-            <select id="fOrdem"><option value="opp">Melhores oportunidades primeiro</option><option value="contato">Mais contatos primeiro</option></select></div>
+            <select id="fOrdem"><option value="opp">Maior nota de oportunidade primeiro</option><option value="contato">Mais contatos primeiro</option></select></div>
           <label class="check"><input type="checkbox" id="onlyPhone"> Só com telefone</label>
         </div>
 
@@ -305,6 +307,8 @@ tr:last-child td{border-bottom:0}
           <select id="fStatus"><option value="">Todos</option><option value="novo">Novo</option><option value="contatado">Contatado</option><option value="respondeu">Respondeu</option><option value="cliente">Cliente</option><option value="descartado">Descartado</option></select></div>
         <div class="field"><label for="fSite">Presença na internet</label>
           <select id="fSite"><option value="">Todas</option><option value="opp">Oportunidades</option><option value="none">Site não encontrado</option><option value="social">Só rede social</option><option value="site">Com site</option></select></div>
+        <div class="field"><label for="fNota">Nota de oportunidade</label>
+          <select id="fNota"><option value="">Qualquer nota</option><option value="70">Nota 70 ou mais (alta)</option><option value="50">Nota 50 ou mais</option></select></div>
         <div class="field"><label for="fText">Procurar nos salvos</label><input id="fText" placeholder="Nome, cidade, telefone…"></div>
       </div>
       <div class="script-bar" data-scriptbar></div>
