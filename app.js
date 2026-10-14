@@ -289,7 +289,7 @@ function mergeOverture(rows,uf,hits){
 /* situação na internet: oportunidade para quem vende site, sistema e marketing */
 function webStatus(l){
   if(l.website){
-    if(l.siteDown)return {k:'down',t:'Site fora do ar',c:'err',opp:true,tip:'O endereço cadastrado não abriu.'};
+    if(l.siteDown)return {k:'down',t:'Site não abriu',c:'err',opp:true,tip:'O endereço cadastrado não respondeu ao Kaptei. Pode estar fora do ar ou bloquear leitura automática: abra no navegador para confirmar.'};
     const i=l.siteInfo, bad=i?[!i.https&&'sem HTTPS (navegador avisa "não seguro")',!i.responsive&&'não adaptado ao celular'].filter(Boolean):[];
     if(bad.length)return {k:'weak',t:'Site com problemas',c:'warn',opp:true,tip:bad.join(' · ')};
     return {k:'site',t:'Tem site',c:'ok',opp:false,tip:''};
@@ -388,7 +388,7 @@ function ideas(l){
   const add=(t,d,s)=>out.push([t,d,s>=80?'alta':s>=55?'média':'baixa',s]);
   if(w.k==='none')add('Criar site/landing page com botão de WhatsApp e cadastro no Google Meu Negócio','não achamos site nas bases abertas; confirme no Google antes de oferecer',100);
   if(w.k==='social')add('Criar site próprio ligado ao Instagram, com WhatsApp e Google Meu Negócio','depender só de rede social limita a captação',95);
-  if(w.k==='down')add('Recuperar ou refazer o site que saiu do ar','o endereço divulgado não abre, e cada visita é um cliente perdido',98);
+  if(w.k==='down')add('Recuperar ou refazer o site (não abriu na leitura automática)','se estiver mesmo fora do ar, cada visita é um cliente perdido; abra o endereço antes de oferecer',98);
   if(w.k==='weak')add(`Modernizar o site (${w.tip})`,'site inseguro ou ruim no celular afasta clientes e piora o Google',90);
   if(c.old)add(`Redesenhar o site (o rodapé ainda mostra © ${c.i.year})`,'site parado no tempo passa a imagem de empresa parada',84);
   if(c.noWhats)add('Colocar botão e atendimento por WhatsApp no site','hoje o site não tem nenhum link de WhatsApp',80);
