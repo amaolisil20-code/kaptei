@@ -299,6 +299,63 @@ function webStatus(l){
 }
 const webPill=l=>{const w=webStatus(l);return `<span class="pill web ${w.c}"${w.tip?` title="${esc(w.tip)}"`:''}>${w.t}</span>`};
 const webMatch=(l,f)=>{if(!f)return true;const w=webStatus(l);return f==='opp'?w.opp:f==='site'?(w.k==='site'||w.k==='weak'||w.k==='down'):w.k===f};
+/* sugestões de serviço por lead: lacunas da presença digital + automações típicas do ramo */
+const SEG_IDEAS=[
+ [/odont|dent|clinic|medic|saude|psicolog|fisio|nutri|laborat|hospital/,[
+  ['Agendamento online com lembrete automático por WhatsApp','reduz faltas e tira a recepção do telefone'],
+  ['Ficha do paciente e retorno automático (ex.: limpeza a cada 6 meses)','traz o paciente de volta sem esforço da equipe']]],
+ [/academia|pilates|crossfit|fitness|esporte/,[
+  ['Cobrança recorrente automática e aviso de mensalidade em atraso','menos inadimplência'],
+  ['Reativação de alunos inativos por WhatsApp e aula experimental com captura de contato','mais matrículas']]],
+ [/restaurante|aliment|cafe|bar|padaria|lanchonete|pizza|confeit/,[
+  ['Cardápio digital com pedido direto por WhatsApp','menos comissão de aplicativo de delivery'],
+  ['Programa de fidelidade e disparo de promoções para clientes antigos','mais recompra']]],
+ [/imobili/,[
+  ['Site com busca de imóveis e CRM que distribui os contatos dos portais','nenhum interessado fica sem resposta'],
+  ['Resposta automática ao interessado em até 1 minuto','quem responde primeiro costuma fechar']]],
+ [/advoc|contab|seguro/,[
+  ['Portal do cliente com envio de documentos e avisos de prazo automáticos','menos cobrança manual por documento'],
+  ['Captação pelo Google e formulário de triagem de casos','atrai cliente já qualificado']]],
+ [/beleza|salao|estetica|barbear|cabele/,[
+  ['Agenda online com confirmação e lembrete automáticos','menos buracos na agenda'],
+  ['Pacotes, assinatura e aviso de retorno (ex.: retoque em 30 dias)','receita recorrente']]],
+ [/pet|veterin/,[
+  ['Lembrete automático de vacina e banho por WhatsApp','retorno garantido'],
+  ['Agenda online e loja virtual de produtos','mais um canal de venda']]],
+ [/educa|escola|curso|idioma|faculdade/,[
+  ['Matrícula online e funil de interessados com follow-up automático','mais conversão de leads'],
+  ['Comunicação com pais e alunos por WhatsApp automatizada','menos ligações para a secretaria']]],
+ [/hotel|hosped|pousada|hostel|motel/,[
+  ['Motor de reservas direto no site com pagamento','menos comissão de OTA'],
+  ['Mensagens automáticas pré e pós-estadia (check-in, avaliação)','mais avaliações e retorno']]],
+ [/oficina|automotiv|mecanic|autopeca/,[
+  ['Orçamento online e aviso de revisão por data ou km','cliente volta sozinho'],
+  ['Acompanhamento do serviço por WhatsApp (carro pronto, aprovação de orçamento)','menos ligações e mais confiança']]],
+ [/constru|engenh|arquitet/,[
+  ['Site com portfólio de obras e formulário de orçamento','prova social que fecha contrato'],
+  ['Painel de acompanhamento de obra para o cliente','diferencial e menos cobrança de status']]],
+ [/mercado|moda|roupa|loja|otica|movel|moveis|joia|flor|farmac|varejo/,[
+  ['Catálogo online com pedido por WhatsApp ou loja virtual','vende fora do horário da loja'],
+  ['Lista de clientes com disparo de ofertas e aviso de reposição','mais recompra']]],
+ [/tecnolog|software|marketing|coworking/,[
+  ['Funil de captação com CRM e automação de e-mail/WhatsApp','organiza o comercial'],
+  ['Painel de indicadores integrado às ferramentas que já usam','decisão com dados']]],
+];
+function ideas(l){
+  const w=webStatus(l), out=[];
+  if(w.k==='none')out.push(['Criar site/landing page com botão de WhatsApp e cadastro no Google Meu Negócio','hoje quem pesquisa a empresa não encontra um site dela','alta']);
+  if(w.k==='social')out.push(['Criar site próprio ligado ao Instagram, com WhatsApp e Google Meu Negócio','depender só de rede social limita a captação','alta']);
+  if(w.k==='down')out.push(['Recuperar ou refazer o site que saiu do ar','o endereço divulgado não abre, e cada visita é um cliente perdido','alta']);
+  if(w.k==='weak')out.push([`Modernizar o site (${w.tip})`,'site inseguro ou ruim no celular afasta clientes e piora o Google','alta']);
+  if(w.k==='site')out.push(['Integrar o formulário do site ao WhatsApp/CRM e trabalhar SEO local','o site existe, mas pode gerar mais contatos','média']);
+  const key=norm([l.cat,l.name].join(' '));
+  const seg=SEG_IDEAS.find(([rx])=>rx.test(key));
+  if(seg)seg[1].forEach(([t,d])=>out.push([t,d,'média']));
+  else out.push(['Atendimento automático no WhatsApp Business com respostas rápidas e CRM simples','centraliza os contatos e acelera a resposta','média']);
+  if(!l.instagram&&!l.facebook)out.push(['Presença em redes sociais com agendamento de posts','nenhuma rede social encontrada nas bases','baixa']);
+  return out.slice(0,5);
+}
+const ideasHTML=l=>{const it=ideas(l);return `<details class="ideas"><summary>Como ajudar (${it.length} ideias)</summary><ul>${it.map(([t,d,p])=>`<li><b>${esc(t)}</b> <span class="prio ${p}">${p}</span><br><span>${esc(d)}</span></li>`).join('')}</ul></details>`};
 const resultScore=l=>!!l.website*2+l.phones.length+!!l.email+!!l.website+!!l.instagram;
 
 /* ---------- CNAE hint (IBGE) ---------- */
@@ -341,7 +398,7 @@ function leadRow(l){
   const saved=isSaved(l.id);
   return `<div class="lead" data-id="${esc(l.id)}">
     <div><div class="name">${esc(l.name)}${webPill(l)}</div>
-      <div class="meta">${l.cat?`<span class="cat">${esc(l.cat)}</span>`:''}${esc([l.address,l.city&&l.uf?l.city+' – '+l.uf:l.city].filter(Boolean).join(' · '))}</div></div>
+      <div class="meta">${l.cat?`<span class="cat">${esc(l.cat)}</span>`:''}${esc([l.address,l.city&&l.uf?l.city+' – '+l.uf:l.city].filter(Boolean).join(' · '))}</div>${ideasHTML(l)}</div>
     <div class="contacts">${contactsHTML(l)}</div>
     <div class="actions">
       ${contactNumber(l)?`<button class="btn sm contact-btn" data-contact="${esc(l.id)}" type="button">Entrar em contato</button>`:''}
@@ -592,7 +649,7 @@ function renderLeads(){
   if(!ls.length){box.innerHTML='<div class="list"><div class="empty"><b>Nenhum lead com esses filtros.</b></div></div>';return}
   box.innerHTML=`<div class="list"><div class="table-wrap"><table><thead><tr><th>Empresa</th><th>Contato</th><th>Lista</th><th>Status</th><th>Anotação</th><th></th></tr></thead><tbody>
   ${ls.map(l=>{const p=(l.whatsapp||[])[0]||(l.phones||[])[0],w=p&&waLink(p);return `<tr data-id="${esc(l.id)}">
-    <td style="min-width:200px"><b>${esc(l.name)}</b>${webPill(l)}<div style="color:var(--muted);font-size:12px">${esc([l.cat,[l.city,l.uf].filter(Boolean).join(' – ')].filter(Boolean).join(' · '))}</div></td>
+    <td style="min-width:200px"><b>${esc(l.name)}</b>${webPill(l)}<div style="color:var(--muted);font-size:12px">${esc([l.cat,[l.city,l.uf].filter(Boolean).join(' – ')].filter(Boolean).join(' · '))}</div>${ideasHTML(l)}</td>
     <td style="min-width:170px;font-size:12.5px">${p?`<span class="mono">${esc(p)}</span>${w?` · <a href="${w}" target="_blank" rel="noopener">WhatsApp</a>`:''}<br>`:''}${l.email?esc(l.email)+'<br>':''}${l.instagram?`<a href="${esc(l.instagram)}" target="_blank" rel="noopener">Instagram</a>`:''}${!p&&!l.email&&!l.instagram?'<span style="color:var(--muted)">—</span>':''}</td>
     <td><select class="note-in" data-f="lista" aria-label="Lista">${store.lists.map(n=>`<option ${n===l.lista?'selected':''}>${esc(n)}</option>`).join('')}</select></td>
     <td><select class="status" data-f="status" data-s="${l.status}" aria-label="Status">${STATUSES.map(([v,t])=>`<option value="${v}" ${v===l.status?'selected':''}>${t}</option>`).join('')}</select></td>
@@ -613,9 +670,9 @@ $('#fText').addEventListener('input',renderLeads);
 
 $('#exportBtn').addEventListener('click',()=>{
   const ls=filteredLeads();if(!ls.length){toast('Nenhum lead para exportar.');return}
-  const cols=['Empresa','Razão social','Ramo','WhatsApp','Telefones','E-mail','Site','Situação na internet','Instagram','CNPJ','Endereço','Cidade','UF','Sócios','Lista','Status','Anotação','Fonte','Salvo em'];
+  const cols=['Empresa','Razão social','Ramo','WhatsApp','Telefones','E-mail','Site','Situação na internet','Sugestões','Instagram','CNPJ','Endereço','Cidade','UF','Sócios','Lista','Status','Anotação','Fonte','Salvo em'];
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  const rows=ls.map(l=>[l.name,l.razao||'',l.cat,(l.whatsapp||[]).join(' / '),(l.phones||[]).join(' / '),l.email,l.website,webStatus(l).t,l.instagram,l.cnpj?fmtCnpj(l.cnpj):'',l.address,l.city,l.uf,(l.socios||[]).map(s=>s.nome).join(' / '),l.lista,l.status,l.notes,l.source,(l.savedAt||'').slice(0,10).split('-').reverse().join('/')].map(q).join(';'));
+  const rows=ls.map(l=>[l.name,l.razao||'',l.cat,(l.whatsapp||[]).join(' / '),(l.phones||[]).join(' / '),l.email,l.website,webStatus(l).t,ideas(l).map(i=>i[0]).join(' | '),l.instagram,l.cnpj?fmtCnpj(l.cnpj):'',l.address,l.city,l.uf,(l.socios||[]).map(s=>s.nome).join(' / '),l.lista,l.status,l.notes,l.source,(l.savedAt||'').slice(0,10).split('-').reverse().join('/')].map(q).join(';'));
   const blob=new Blob(['﻿'+[cols.map(q).join(';'),...rows].join('\r\n')],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`kaptei-leads-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(a);a.click();a.remove();
   toast(`${ls.length} leads exportados.`);
