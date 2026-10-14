@@ -294,8 +294,8 @@ function webStatus(l){
     if(bad.length)return {k:'weak',t:'Site com problemas',c:'warn',opp:true,tip:bad.join(' · ')};
     return {k:'site',t:'Tem site',c:'ok',opp:false,tip:''};
   }
-  if(l.instagram||l.facebook)return {k:'social',t:'Só rede social',c:'warn',opp:true,tip:'Tem Instagram/Facebook cadastrado, mas nenhum site.'};
-  return {k:'none',t:'Sem site',c:'err',opp:true,tip:'Nenhum site nem rede social cadastrados nas bases.'};
+  if(l.instagram||l.facebook)return {k:'social',t:'Só rede social',c:'warn',opp:true,tip:'Tem Instagram/Facebook cadastrado, mas nenhum site nas bases abertas. Confirme no Google.'};
+  return {k:'none',t:'Site não encontrado',c:'warn',opp:true,tip:'Não há site cadastrado nas bases abertas (OpenStreetMap e Overture). Pode existir: confira no Google antes de abordar e, se achar, cole o endereço no campo do resultado.'};
 }
 const webPill=l=>{const w=webStatus(l);return `<span class="pill web ${w.c}"${w.tip?` title="${esc(w.tip)}"`:''}>${w.t}</span>`};
 const webMatch=(l,f)=>{if(!f)return true;const w=webStatus(l);return f==='opp'?w.opp:f==='site'?(w.k==='site'||w.k==='weak'||w.k==='down'):w.k===f};
@@ -343,7 +343,7 @@ const SEG_IDEAS=[
 ];
 function ideas(l){
   const w=webStatus(l), out=[];
-  if(w.k==='none')out.push(['Criar site/landing page com botão de WhatsApp e cadastro no Google Meu Negócio','hoje quem pesquisa a empresa não encontra um site dela','alta']);
+  if(w.k==='none')out.push(['Criar site/landing page com botão de WhatsApp e cadastro no Google Meu Negócio','não achamos site nas bases abertas; confirme no Google antes de oferecer','alta']);
   if(w.k==='social')out.push(['Criar site próprio ligado ao Instagram, com WhatsApp e Google Meu Negócio','depender só de rede social limita a captação','alta']);
   if(w.k==='down')out.push(['Recuperar ou refazer o site que saiu do ar','o endereço divulgado não abre, e cada visita é um cliente perdido','alta']);
   if(w.k==='weak')out.push([`Modernizar o site (${w.tip})`,'site inseguro ou ruim no celular afasta clientes e piora o Google','alta']);
@@ -403,7 +403,7 @@ function leadRow(l){
     <div class="actions">
       ${contactNumber(l)?`<button class="btn sm contact-btn" data-contact="${esc(l.id)}" type="button">Entrar em contato</button>`:''}
       ${saved?'<span class="saved-badge">✓ Salvo</span>':`<button class="btn sm" data-save="${esc(l.id)}" type="button">Salvar lead</button>`}
-      <a class="btn ghost sm" href="https://www.google.com/maps/search/?api=1&query=${gq(l)}" target="_blank" rel="noopener">Ver no Google</a>
+      ${webStatus(l).k==='none'||webStatus(l).k==='social'?`<a class="btn ghost sm" href="https://www.google.com/search?q=${gq(l)}+site+oficial" target="_blank" rel="noopener">Conferir site no Google</a>`:''}<a class="btn ghost sm" href="https://www.google.com/maps/search/?api=1&query=${gq(l)}" target="_blank" rel="noopener">Ver no Google</a>
       <a class="btn ghost sm" href="https://www.google.com/search?q=${gq(l)}+instagram" target="_blank" rel="noopener">Achar Instagram</a>
     </div></div>`;
 }
@@ -484,7 +484,7 @@ function renderResults(term,hits){
   const res=$('#results');
   if(!lastResults.length){res.innerHTML=`<div class="list"><div class="empty"><b>Nenhuma empresa encontrada para "${esc(term)}".</b>Tente um termo mais simples (por exemplo "dentista" em vez de "consultório odontológico infantil") ou busque no estado todo.</div></div>`;return}
   res.innerHTML=`<div class="res-head" style="margin-bottom:12px"><h2>${lastResults.length} empresa${lastResults.length>1?'s':''} encontrada${lastResults.length>1?'s':''}</h2>
-    <p><span class="mono" id="withPhone">${withPhone}</span> com telefone · <span class="mono">${semSite}</span> oportunidades de site${hits.length?` · categorias: ${esc([...new Set(hits.map(h=>h.c))].join(', '))}`:' · busca pelo nome'}</p></div>
+    <p><span class="mono" id="withPhone">${withPhone}</span> com telefone · <span class="mono">${semSite}</span> possíveis oportunidades de site${hits.length?` · categorias: ${esc([...new Set(hits.map(h=>h.c))].join(', '))}`:' · busca pelo nome'}</p></div>
     <div class="list">${list.slice(0,300).map(leadRow).join('')||'<div class="empty"><b>Nenhum resultado com esses filtros.</b>Desmarque "Só com telefone" ou mude "Presença na internet" para ver todos.</div>'}</div>
     ${list.length>300?'<p class="lede" style="margin-top:10px">Mostrando os 300 primeiros. Refine pela cidade para ver o resto.</p>':''}
     <p class="lede" style="margin-top:12px;font-size:12.5px">Fontes: © colaboradores do OpenStreetMap e Overture Maps Foundation. Nenhuma base tem todas as empresas.</p>`;
