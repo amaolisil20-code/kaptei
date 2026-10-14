@@ -274,18 +274,65 @@ function toLeadOv(r,uf,hits){
     address:r.endereco||'',city:r.cidade||'',uf:r.uf||uf,cnpj:'',lat:r.lat,lon:r.lon,socios:[]};
 }
 // junta os resultados do Overture aos do mapa aberto, sem repetir a mesma empresa
-function mergeOverture(rows,uf,hits){
+// junta resultados de outra base aos já listados, sem repetir a mesma empresa (por nome ou telefone)
+function mergeLeads(news){
   const keyName=l=>norm(l.name).replace(/[^a-z0-9]/g,'')+'|'+norm(l.city);
-  const phones=new Set(lastResults.flatMap(l=>l.phones.map(digits).filter(Boolean)));
-  const names=new Set(lastResults.map(keyName));
-  let added=0;
-  rows.forEach(r=>{
-    const l=toLeadOv(r,uf,hits);
-    if(lastResults.some(x=>x.id===l.id)||names.has(keyName(l))||l.phones.some(p=>phones.has(digits(p))))return;
-    lastResults.push(l);names.add(keyName(l));l.phones.forEach(p=>phones.add(digits(p)));added++;
+  const byPhone=new Map(), byName=new Map(), byId=new Set(lastResults.map(x=>x.id));
+  const index=l=>{byName.set(keyName(l),l);l.phones.forEach(p=>{const d=digits(p);if(d)byPhone.set(d,l)})};
+  lastResults.forEach(index);
+  let changed=0;
+  news.forEach(l=>{
+    const dup=byName.get(keyName(l))||l.phones.map(p=>byPhone.get(digits(p))).find(Boolean);
+    if(byId.has(l.id))return;
+    if(dup){ // já existe: só completa com o que a Receita sabe (CNPJ, razão social, e-mail)
+      if(l.cnpj&&!dup.cnpj){dup.cnpj=l.cnpj;dup.razao=dup.razao||l.razao;dup.mei=l.mei;changed++}
+      if(l.email&&!dup.email)dup.email=l.email;
+      return;
+    }
+    lastResults.push(l);byId.add(l.id);index(l);changed++;
   });
-  return added;
+  return changed;
 }
+function mergeOverture(rows,uf,hits){return mergeLeads(rows.map(r=>toLeadOv(r,uf,hits)))}
+
+/* ---------- Base CNPJ (Receita Federal, já com telefone) ---------- */
+// ramo → prefixos de CNAE. Termos fora da lista usam os CNAE do IBGE que combinam com as palavras.
+const CNAE_MAP={Odontologia:['8630504'],Academia:['9313'],Restaurante:['5611'],Alimentação:['5611','5612'],Café:['5611'],Bar:['5611'],Imobiliária:['6821','6822'],
+ Laboratório:['8640'],Clínica:['8630','8650'],Hospital:['8610'],Farmácia:['4771'],Pet:['7500','4789004'],Advocacia:['6911'],Contabilidade:['6920'],Beleza:['9602'],
+ Padaria:['1091','4721102'],Mercado:['4711','4712'],Educação:['85'],Automotivo:['4520','4530'],Ótica:['4774'],Psicologia:['8650003'],Fisioterapia:['8650004'],
+ Nutrição:['8650002'],Hospedagem:['5510','5590'],Moda:['4781'],Construção:['41','43'],Seguros:['65','66'],Tecnologia:['62','63'],Marketing:['7311','7312','7319'],
+ Igreja:['9491'],Eventos:['8230','5620'],Móveis:['4754'],Joalheria:['4783']};
+async function loadCnae(){
+  if(!cnaeCache){const r=await fetch('https://servicodados.ibge.gov.br/api/v2/cnae/subclasses');cnaeCache=(await r.json()).map(x=>({id:x.id,d:x.descricao,n:norm(x.descricao)}))}
+  return cnaeCache;
+}
+async function cnaesFor(term,hits){
+  const m=[...new Set(hits.flatMap(h=>CNAE_MAP[h.c]||[]))];
+  if(m.length)return m;
+  try{
+    const words=norm(term).split(/\s+/).filter(w=>w.length>=4).map(w=>w.slice(0,Math.max(4,w.length-3)));
+    if(!words.length)return [];
+    const best=(await loadCnae()).map(c=>({id:c.id,s:words.filter(w=>c.n.includes(w)).length})).filter(c=>c.s).sort((a,b)=>b.s-a.s);
+    return best.length?best.filter(c=>c.s===best[0].s).slice(0,4).map(c=>c.id):[];
+  }catch(e){return []}
+}
+async function cnpjBase(term,hits,city,uf){
+  if(!city)return [];
+  const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),30000);
+  try{
+    const cn=await cnaesFor(term,hits);if(!cn.length)return [];
+    const r=await fetch('/api/cnpj?'+new URLSearchParams({uf,city,cnaes:cn.join(',')}),{signal:ctl.signal});
+    return r.ok?((await r.json()).rows||[]):[];
+  }catch(e){return []}finally{clearTimeout(to)}
+}
+const titleCase=s=>String(s||'').toLowerCase().replace(/(^|[\s(\/-])(\p{L})/gu,(m,a,b)=>a+b.toUpperCase()).replace(/ (Da|De|Do|Das|Dos|E)(?= )/g,x=>x.toLowerCase()).replace(/\b(Ltda|Me|Epp|Eireli|Sa|Ss)\b/g,x=>x.toUpperCase());
+function toLeadCnpj(r,uf,hits,cityName){
+  const label=hits.length===1?hits[0].c:((cnaeCache||[]).find(c=>c.id===r.cnae)?.d||hits.map(h=>h.c).join(', '));
+  return {id:'cnpj:'+r.cnpj,whatsapp:[],linkedin:'',source:'Receita Federal',name:titleCase(r.nome)||'(sem nome)',razao:titleCase(r.razao),cat:label,
+    phones:[...new Set(r.phones||[])],email:r.email||'',website:'',instagram:'',facebook:'',address:titleCase(r.endereco),city:cityName||titleCase(r.cidade),uf:r.uf||uf,
+    cnpj:r.cnpj,mei:!!r.mei,socios:[]};
+}
+function mergeCnpj(rows,uf,hits,cityName){return mergeLeads(rows.map(r=>toLeadCnpj(r,uf,hits,cityName)))}
 /* situação na internet: oportunidade para quem vende site, sistema e marketing */
 function webStatus(l){
   if(l.website){
@@ -471,7 +518,7 @@ const gq=l=>encodeURIComponent([l.name,l.city,l.uf].filter(Boolean).join(' '));
 function leadRow(l){
   const saved=isSaved(l.id);
   return `<div class="lead" data-id="${esc(l.id)}">
-    <div><div class="name">${esc(l.name)}${webPill(l)}${notaPill(l)}</div>
+    <div><div class="name">${esc(l.name)}${webPill(l)}${notaPill(l)}${l.mei?'<span class="pill web" title="MEI/empresário individual: dado de pessoa física. Use só para prospecção, com opção de o contato não receber mais mensagens (LGPD).">MEI</span>':''}</div>
       <div class="meta">${l.cat?`<span class="cat">${esc(l.cat)}</span>`:''}${esc([l.address,l.city&&l.uf?l.city+' – '+l.uf:l.city].filter(Boolean).join(' · '))}</div>${ideasHTML(l)}</div>
     <div class="contacts">${contactsHTML(l)}</div>
     <div class="actions">
@@ -530,12 +577,14 @@ async function searchEmpresas(term){
   const stateName=UFS.find(u=>u[0]===uf)[1];
   const tok=++searchTok;
   const ovP=overture(term,hits,city?.nome,stateName);   // roda junto com o mapa aberto
+  const cnP=cnpjBase(term,hits,city?.nome,uf);          // e com a base CNPJ da Receita
   lastResults=[];
-  const addOverture=async()=>{
-    const rows=await ovP;if(tok!==searchTok)return 0;const added=mergeOverture(rows,uf,hits);
+  const addFrom=async(p,mergeFn)=>{   // cada base entra na lista assim que responde
+    const rows=await p;if(tok!==searchTok)return 0;const added=mergeFn(rows);
     if(added){lastResults.sort((a,b)=>resultScore(b)-resultScore(a));if(mode==='empresas'&&$('#results').querySelector('.list,.res-head,.notice')){renderResults(term,hits)}enrichMany(lastResults)}
     return added;
   };
+  const addOverture=async()=>{const n=await Promise.all([addFrom(ovP,r=>mergeOverture(r,uf,hits)),addFrom(cnP,r=>mergeCnpj(r,uf,hits,city?.nome))]);return n[0]+n[1]};
   try{
     const d=await overpass(q,city?.nome,stateName);
     const seen=new Set();
@@ -543,7 +592,7 @@ async function searchEmpresas(term){
     lastResults.sort((a,b)=>resultScore(b)-resultScore(a));
     renderResults(term,hits);
     enrichMany(lastResults);
-    if(city){setBusy(false);$('#withPhone')?.insertAdjacentHTML('afterend',' <span class="mono" id="ovWait">· buscando mais na base Overture…</span>');await addOverture();$('#ovWait')?.remove()}
+    if(city){setBusy(false);$('#withPhone')?.insertAdjacentHTML('afterend',' <span class="mono" id="ovWait">· buscando mais nas bases abertas e na Receita…</span>');await addOverture();$('#ovWait')?.remove()}
   }catch(e){
     if(city){const added=await addOverture();if(added){setBusy(false);return}}
     res.innerHTML=`<div class="notice err">${city?'Os servidores do mapa aberto não responderam agora. Tente de novo em alguns segundos.':'O estado inteiro é grande demais para o mapa aberto responder de uma vez. Escolha uma cidade.'}<br><span style="font-size:12px;opacity:.8">${esc(e.message||'')}</span></div>`}
@@ -562,7 +611,7 @@ function renderResults(term,hits){
     <p><span class="mono" id="withPhone">${withPhone}</span> com telefone · <span class="mono">${semSite}</span> possíveis oportunidades de site${hits.length?` · categorias: ${esc([...new Set(hits.map(h=>h.c))].join(', '))}`:' · busca pelo nome'}</p></div>
     <div class="list">${list.slice(0,300).map(leadRow).join('')||'<div class="empty"><b>Nenhum resultado com esses filtros.</b>Desmarque "Só com telefone" ou mude "Presença na internet" para ver todos.</div>'}</div>
     ${list.length>300?'<p class="lede" style="margin-top:10px">Mostrando os 300 primeiros. Refine pela cidade para ver o resto.</p>':''}
-    <p class="lede" style="margin-top:12px;font-size:12.5px">Fontes: © colaboradores do OpenStreetMap e Overture Maps Foundation. Nenhuma base tem todas as empresas.</p>`;
+    <p class="lede" style="margin-top:12px;font-size:12.5px">Fontes: © colaboradores do OpenStreetMap, Overture Maps Foundation e Receita Federal (dados abertos). Nenhuma base tem todas as empresas.</p>`;
 }
 try{const o=localStorage.getItem('kaptei.ordem');if(o)$('#fOrdem').value=o}catch(e){}
 $('#fOrdem').addEventListener('change',()=>{try{localStorage.setItem('kaptei.ordem',$('#fOrdem').value)}catch(e){}});
