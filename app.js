@@ -769,12 +769,13 @@ function filteredLeads(){
   return store.leads.filter(l=>(L==='*'||!L||l.lista===L)&&(!S||l.status===S)&&webMatch(l,$('#fSite').value)&&notaMatch(l,$('#fNota').value)&&(!T||norm([l.name,l.city,l.uf,l.cat,l.email,(l.phones||[]).join(' '),l.notes].join(' ')).includes(T)));
 }
 function quickLinks(l){
-  const a=(href,t)=>`<a class="btn ghost sm" href="${href}" target="_blank" rel="noopener">${t}</a>`;
+  const a=(href,t,title)=>`<a href="${href}" target="_blank" rel="noopener" title="${title}">${t}</a>`;
   const q=gq(l);
   return [
-    l.website?a(esc(l.website),'Abrir site'):a(`https://www.google.com/search?q=${q}+site+oficial`,'Conferir site no Google'),
-    a(`https://www.google.com/maps/search/?api=1&query=${q}`,'Ver no Google'),
-    l.instagram?a(esc(l.instagram),'Ver Instagram'):a(`https://www.google.com/search?q=${q}+instagram`,'Achar Instagram')
+    l.website?a(esc(l.website),'Site','Abrir o site da empresa'):a(`https://www.google.com/search?q=${q}+site+oficial`,'Achar site','Procurar o site no Google'),
+    a(`https://www.google.com/search?q=${q}`,'Google','Procurar a empresa no Google'),
+    a(`https://www.google.com/maps/search/?api=1&query=${q}`,'Maps','Ver no Google Maps'),
+    l.instagram?a(esc(l.instagram),'Instagram','Abrir o Instagram da empresa'):a(`https://www.google.com/search?q=${q}+instagram`,'Achar Instagram','Procurar o Instagram no Google')
   ].join('');
 }
 function renderLeads(){
@@ -785,8 +786,8 @@ function renderLeads(){
   box.innerHTML=`<div class="list"><div class="table-wrap"><table><thead><tr><th>Empresa</th><th>Contato</th><th>Lista</th><th>Status</th><th>Anotação</th><th></th></tr></thead><tbody>
   ${ls.map(l=>{const p=(l.whatsapp||[])[0]||(l.phones||[])[0],w=p&&waLink(p);return `<tr data-id="${esc(l.id)}">
     <td style="min-width:200px"><b>${esc(l.name)}</b>${webPill(l)}${notaPill(l)}<div style="color:var(--muted);font-size:12px">${esc([l.cat,[l.city,l.uf].filter(Boolean).join(' – ')].filter(Boolean).join(' · '))}</div>${ideasHTML(l)}</td>
-    <td style="min-width:170px;font-size:12.5px">${p?`<span class="mono">${esc(p)}</span>${w?` · <a href="${w}" target="_blank" rel="noopener">WhatsApp</a>`:''}<br>`:''}${l.email?esc(l.email)+'<br>':''}${l.instagram?`<a href="${esc(l.instagram)}" target="_blank" rel="noopener">Instagram</a>`:''}${!p&&!l.email&&!l.instagram?'<span style="color:var(--muted)">—</span>':''}
-      <div class="quick" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">${quickLinks(l)}</div></td>
+    <td style="min-width:170px;font-size:12.5px">${p?`<span class="mono">${esc(p)}</span>${w?` · <a href="${w}" target="_blank" rel="noopener">WhatsApp</a>`:''}<br>`:''}${l.email?esc(l.email)+'<br>':''}${!p&&!l.email?'<span style="color:var(--muted)">—</span>':''}
+      <div class="quick">${quickLinks(l)}</div></td>
     <td><select class="note-in" data-f="lista" aria-label="Lista">${store.lists.map(n=>`<option ${n===l.lista?'selected':''}>${esc(n)}</option>`).join('')}</select></td>
     <td><select class="status" data-f="status" data-s="${l.status}" aria-label="Status">${STATUSES.map(([v,t])=>`<option value="${v}" ${v===l.status?'selected':''}>${t}</option>`).join('')}</select></td>
     <td style="min-width:180px"><input class="note-in" data-f="notes" value="${esc(l.notes)}" placeholder="Anotar…" aria-label="Anotação"></td>
