@@ -514,6 +514,7 @@ function contactsHTML(l){
   if(!l.website)st=`<form class="siteform" data-siteform="${esc(l.id)}"><input name="site" placeholder="Achou o site? Cole aqui" aria-label="Site da empresa" autocomplete="off"><button class="btn ghost sm" type="submit">Ler site</button></form>`;
   return (rows.length?rows.join(''):'<span class="none">Sem contato no mapa.</span>')+st;
 }
+const mq=l=>encodeURIComponent([l.name,l.address,l.city,l.uf].filter(Boolean).join(", "));
 const gq=l=>encodeURIComponent([l.name,l.city,l.uf].filter(Boolean).join(' '));
 function leadRow(l){
   const saved=isSaved(l.id);
@@ -524,7 +525,7 @@ function leadRow(l){
     <div class="actions">
       ${contactNumber(l)?`<button class="btn sm contact-btn" data-contact="${esc(l.id)}" type="button">Entrar em contato</button>`:''}
       ${saved?'<span class="saved-badge">✓ Salvo</span>':`<button class="btn sm" data-save="${esc(l.id)}" type="button">Salvar lead</button>`}
-      ${webStatus(l).k==='none'||webStatus(l).k==='social'?`<a class="btn ghost sm" href="https://www.google.com/search?q=${gq(l)}+site+oficial" target="_blank" rel="noopener">Conferir site no Google</a>`:''}<a class="btn ghost sm" href="https://www.google.com/maps/search/?api=1&query=${gq(l)}" target="_blank" rel="noopener">Ver no Google</a>
+      ${webStatus(l).k==='none'||webStatus(l).k==='social'?`<a class="btn ghost sm" href="https://www.google.com/search?q=${gq(l)}+site+oficial" target="_blank" rel="noopener">Conferir site no Google</a>`:''}<a class="btn ghost sm" href="https://www.google.com/maps/search/?api=1&query=${mq(l)}" target="_blank" rel="noopener">Ver no Google</a>
       <a class="btn ghost sm" href="https://www.google.com/search?q=${gq(l)}+instagram" target="_blank" rel="noopener">Achar Instagram</a>
     </div></div>`;
 }
@@ -653,7 +654,7 @@ async function searchCnpj(raw){
         <dt>Telefone</dt><dd>${tel.length?tel.map(t=>{const w=waLink(t);return `<span class="mono">${esc(t)}</span>${w?` <a href="${w}" target="_blank" rel="noopener">WhatsApp</a>`:''}`}).join('<br>'):'—'}</dd>
         <dt>E-mail</dt><dd>${esc(lastCompany.email||'—')}</dd>
         <dt>Endereço</dt><dd>${esc(lastCompany.address||'—')}<br>${esc([lastCompany.city,lastCompany.uf].filter(Boolean).join(' – '))}${d.cep?` · <span class="mono">${esc(d.cep)}</span>`:''}</dd>
-        <dt>Atalhos</dt><dd><a href="https://www.google.com/maps/search/?api=1&query=${gq(lastCompany)}" target="_blank" rel="noopener">Google</a> · <a href="https://www.google.com/search?q=${gq(lastCompany)}+instagram" target="_blank" rel="noopener">Instagram</a></dd>
+        <dt>Atalhos</dt><dd><a href="https://www.google.com/maps/search/?api=1&query=${mq(lastCompany)}" target="_blank" rel="noopener">Google</a> · <a href="https://www.google.com/search?q=${gq(lastCompany)}+instagram" target="_blank" rel="noopener">Instagram</a></dd>
       </dl>
     </div>
     <div><h2 style="margin-bottom:8px">Sócios e decisores</h2>
@@ -774,7 +775,7 @@ function quickLinks(l){
   return [
     l.website?a(esc(l.website),'Site','Abrir o site da empresa'):a(`https://www.google.com/search?q=${q}+site+oficial`,'Achar site','Procurar o site no Google'),
     a(`https://www.google.com/search?q=${q}`,'Google','Procurar a empresa no Google'),
-    a(`https://www.google.com/maps/search/?api=1&query=${q}`,'Maps','Ver no Google Maps'),
+    a(`https://www.google.com/maps/search/?api=1&query=${mq(l)}`,'Maps','Ver no Google Maps'),
     l.instagram?a(esc(l.instagram),'Instagram','Abrir o Instagram da empresa'):a(`https://www.google.com/search?q=${q}+instagram`,'Achar Instagram','Procurar o Instagram no Google')
   ].join('');
 }
