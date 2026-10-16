@@ -559,7 +559,26 @@ async function enrich(l){
   if(saved){Object.assign(saved,{phones:l.phones,whatsapp:l.whatsapp,email:l.email,instagram:l.instagram,facebook:l.facebook,linkedin:l.linkedin,website:l.website});dbLead(saved)}
   rerenderLead(l);updateHeadCount();
 }
+/* base da Receita não traz site: tenta o endereço do e-mail da empresa (ex.: contato@loja.com.br -> loja.com.br)
+   e só aceita se o site mostrar um telefone que a empresa também tem */
+const FREE_MAIL=/^(gmail|hotmail|outlook|yahoo|live|msn|icloud|uol|bol|terra|ig|globo|globomail|oi|zipmail|r7|proton|protonmail|me).|^(googlemail)./i;
+async function guessSite(l){
+  if(l.website||l.siteTried||!l.email)return;
+  const dom=(l.email.split("@")[1]||"").toLowerCase().trim();
+  if(!dom||!dom.includes(".")||FREE_MAIL.test(dom))return;
+  l.siteTried=true;
+  try{
+    const d=await (await fetch("/api/site?"+new URLSearchParams({url:"https://"+dom}))).json();
+    if(!d.ok)return;
+    const tail=x=>digits(x).slice(-8);
+    const mine=new Set([...(l.phones||[]),...(l.whatsapp||[])].map(tail).filter(x=>x.length===8));
+    const theirs=[...(d.phones||[]),...(d.whatsapp||[])].map(tail);
+    if(theirs.some(x=>mine.has(x)))l.website="https://"+dom;
+  }catch(e){}
+}
 async function enrichMany(list){
+  const g=list.filter(l=>!l.website&&!l.siteTried&&l.email);
+  if(g.length){const q=g.slice(0,40);await Promise.all([0,1,2].map(async()=>{while(q.length)await guessSite(q.shift())}));if(g.some(l=>l.website)&&mode==="empresas"&&lastResults.length)renderResults($("#q").value,matchTags($("#q").value))}
   const queue=list.filter(l=>l.website&&!l.enrich).slice(0,40);
   const worker=async()=>{while(queue.length){await enrich(queue.shift())}};
   await Promise.all([worker(),worker(),worker()]);
